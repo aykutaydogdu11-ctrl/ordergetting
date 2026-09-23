@@ -14,6 +14,15 @@
     header a { color: white; text-decoration: none; font-size: 14px; }
     header h1 { font-size: 18px; margin: 0; }
 
+    .search-box { padding: 10px 12px; background: white; border-bottom: 1px solid #ddd; }
+    .search-box input {
+      width: 100%; padding: 12px 14px; font-size: 16px; border: 2px solid #2d6a4f;
+      border-radius: 10px;
+    }
+    .search-results { padding: 10px 12px; }
+    .search-results .item-btn { border: 1px solid #2d6a4f; }
+    .search-results .cat-label { font-size: 11px; color: #888; display: block; }
+
     .tabs { display: flex; overflow-x: auto; background: white; border-bottom: 1px solid #ddd; }
     .tabs button {
       flex: 0 0 auto; padding: 12px 16px; border: none; background: none;
@@ -59,6 +68,11 @@
     <h1>Table {{ table_no }}</h1>
     <span></span>
   </header>
+
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Type to search (e.g. egg, bacon)..." autocomplete="off" oninput="onSearch()">
+  </div>
+  <div class="search-results" id="searchResults" style="display:none;"></div>
 
   <div class="tabs" id="tabs"></div>
   <div class="items" id="items"></div>
@@ -121,6 +135,65 @@
           div.appendChild(btn);
         });
         itemsEl.appendChild(div);
+      });
+    }
+
+    // Flatten all items across all categories once, for fast searching
+    const ALL_ITEMS = [];
+    MENU.categories.forEach(cat => {
+      cat.items.forEach(item => {
+        if (item.prices) {
+          for (const [size, price] of Object.entries(item.prices)) {
+            ALL_ITEMS.push({
+              displayName: item.name + ' (' + size + ')',
+              price, note: item.note || '', categoryName: cat.name,
+              freeDrinkIncluded: cat.free_drink_included
+            });
+          }
+        } else {
+          ALL_ITEMS.push({
+            displayName: item.name,
+            price: item.price === null ? 0 : item.price,
+            note: item.note || '', categoryName: cat.name,
+            freeDrinkIncluded: cat.free_drink_included
+          });
+        }
+      });
+    });
+
+    function onSearch() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const resultsEl = document.getElementById('searchResults');
+      const tabsEl = document.getElementById('tabs');
+      const itemsEl = document.getElementById('items');
+
+      if (!q) {
+        resultsEl.style.display = 'none';
+        tabsEl.style.display = '';
+        itemsEl.style.display = '';
+        return;
+      }
+
+      tabsEl.style.display = 'none';
+      itemsEl.style.display = 'none';
+      resultsEl.style.display = '';
+
+      const matches = ALL_ITEMS.filter(it => it.displayName.toLowerCase().includes(q));
+      resultsEl.innerHTML = '';
+      if (matches.length === 0) {
+        resultsEl.innerHTML = '<p>No matches.</p>';
+        return;
+      }
+      matches.slice(0, 30).forEach(it => {
+        const btn = document.createElement('button');
+        btn.className = 'item-btn';
+        btn.innerHTML = '<span>' + it.displayName + '<span class="cat-label">' + it.categoryName + '</span></span><span class="price">£' + it.price.toFixed(2) + '</span>';
+        btn.onclick = () => {
+          addItem(it.displayName, it.price, it.categoryName, it.freeDrinkIncluded);
+          document.getElementById('searchInput').value = '';
+          onSearch();
+        };
+        resultsEl.appendChild(btn);
       });
     }
 
