@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Table {{ table_no }} - Moonrise Order App</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; margin: 0; background: #f5f5f5; }
+    header {
+      background: #2d6a4f; color: white; padding: 14px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header a { color: white; text-decoration: none; font-size: 14px; }
+    header h1 { font-size: 18px; margin: 0; }
+
+    .tabs { display: flex; overflow-x: auto; background: white; border-bottom: 1px solid #ddd; }
+    .tabs button {
+      flex: 0 0 auto; padding: 12px 16px; border: none; background: none;
+      font-size: 14px; white-space: nowrap; border-bottom: 3px solid transparent;
+    }
+    .tabs button.active { border-bottom: 3px solid #2d6a4f; font-weight: bold; }
+
+    .items { padding: 10px 12px; }
+    .category { display: none; }
+    .category.active { display: block; }
+    .item-btn {
+      display: flex; justify-content: space-between; width: 100%; text-align: left;
+      padding: 14px; margin-bottom: 8px; background: white; border: 1px solid #ddd;
+      border-radius: 10px; font-size: 15px;
+    }
+    .item-btn .price { color: #2d6a4f; font-weight: bold; }
+
+    .order-panel {
+      position: sticky; bottom: 0; background: white; border-top: 2px solid #2d6a4f;
+      max-height: 45vh; overflow-y: auto; padding: 10px 12px;
+    }
+    .order-panel h2 { font-size: 15px; margin: 0 0 8px 0; }
+    .order-line {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px;
+    }
+    .order-line .note { display: block; font-size: 12px; color: #777; }
+    .order-line button { background: none; border: none; color: #c0392b; font-size: 18px; }
+    .order-total { display: flex; justify-content: space-between; font-weight: bold; padding: 10px 0; font-size: 16px; }
+    .free-note { color: #2d6a4f; font-size: 12px; }
+
+    .action-row { display: flex; gap: 8px; margin-top: 8px; }
+    .action-row button {
+      flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold;
+    }
+    .send-btn { background: #2d6a4f; color: white; }
+    .pay-btn { background: #c0392b; color: white; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">&larr; Tables</a>
+    <h1>Table {{ table_no }}</h1>
+    <span></span>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="items" id="items"></div>
+
+  <div class="order-panel">
+    <h2>Current Order</h2>
+    <div id="orderLines"></div>
+    <div class="order-total">
+      <span>Total</span>
+      <span id="orderTotal">£0.00</span>
+    </div>
+    <div class="action-row">
+      <button class="send-btn" onclick="sendToKitchen()">Send to Kitchen/Bar</button>
+      <button class="pay-btn" onclick="payAndClose()">Pay &amp; Close</button>
+    </div>
+  </div>
+
+  <script>
+    const TABLE_NO = "{{ table_no }}";
+    const MENU = {{ menu | tojson }};
+    let order = {{ order | tojson }};
+
+    function renderTabs() {
+      const tabsEl = document.getElementById('tabs');
+      tabsEl.innerHTML = '';
+      MENU.categories.forEach((cat, i) => {
+        const btn = document.createElement('button');
+        btn.textContent = cat.name;
+        btn.className = i === 0 ? 'active' : '';
+        btn.onclick = () => showCategory(i);
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderItems() {
+      const itemsEl = document.getElementById('items');
+      itemsEl.innerHTML = '';
+      MENU.categories.forEach((cat, i) => {
+        const div = document.createElement('div');
+        div.className = 'category' + (i === 0 ? ' active' : '');
+        div.id = 'cat-' + i;
+        cat.items.forEach(item => {
+          const btn = document.createElement('button');
+          btn.className = 'item-btn';
+          // Handle sized items (roll/sand/crusty/bag) vs flat-price items
+          if (item.prices) {
+            let inner = '<span>' + item.name + (item.note ? ' — ' + item.note : '') + '</span><span>';
+            for (const [size, price] of Object.entries(item.prices)) {
+              inner += '<span class="price" style="margin-left:8px" onclick="event.stopPropagation(); addItem(\'' +
+                item.name.replace(/'/g, "\\'") + ' (' + size + ')\', ' + price + ', \'' + cat.name.replace(/'/g, "\\'") + '\')">' +
+                size + ' £' + price.toFixed(2) + '</span>';
+            }
+            inner += '</span>';
+            btn.innerHTML = inner;
+          } else {
+            const price = item.price === null ? 0 : item.price;
+            btn.innerHTML = '<span>' + item.name + (item.note ? ' — <small>' + item.note + '</small>' : '') + '</span><span class="price">£' + price.toFixed(2) + '</span>';
+            btn.onclick = () => addItem(item.name, price, cat.name, cat.free_drink_included);
+          }
+          div.appendChild(btn);
+        });
+        itemsEl.appendChild(div);
+      });
+    }
+
+    function showCategory(i) {
+      document.querySelectorAll('.tabs button').forEach((b, idx) => b.classList.toggle('active', idx === i));
+      document.querySelectorAll('.category').forEach((c, idx) => c.classList.toggle('active', idx === i));
+    }
+
+    function addItem(name, price, categoryName, freeDrinkIncluded) {
+      let note = '';
+      if (freeDrinkIncluded) {
+        note = prompt('Free tea or coffee included — which one? (leave blank to skip)') || '';
+        if (note) note = 'Free drink: ' + note;
+      } else {
+        note = prompt('Any note for this item? (e.g. no chips, no tomato)') || '';
+      }
+      fetch('/table/' + TABLE_NO + '/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, price, qty: 1, note})
+      }).then(r => r.json()).then(data => {
+        order = data.order;
+        renderOrder();
+      });
+    }
+
+    function removeItem(index) {
+      fetch('/table/' + TABLE_NO + '/remove', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({index})
+      }).then(r => r.json()).then(data => {
+        order = data.order;
+        renderOrder();
+      });
+    }
+
+    function renderOrder() {
+      const linesEl = document.getElementById('orderLines');
+      linesEl.innerHTML = '';
+      let total = 0;
+      order.items.forEach((item, i) => {
+        total += item.price * item.qty;
+        const div = document.createElement('div');
+        div.className = 'order-line';
+        div.innerHTML = '<span>' + item.qty + 'x ' + item.name +
+          (item.note ? '<span class="note">' + item.note + '</span>' : '') +
+          '</span><span>£' + (item.price * item.qty).toFixed(2) + '<button onclick="removeItem(' + i + ')">&times;</button></span>';
+        linesEl.appendChild(div);
+      });
+      document.getElementById('orderTotal').textContent = '£' + total.toFixed(2);
+    }
+
+    function sendToKitchen() {
+      // Printer integration goes here later. For now just confirm.
+      alert('Sent to kitchen/bar (printer integration coming soon).');
+    }
+
+    function payAndClose() {
+      if (!confirm('Close table ' + TABLE_NO + '? This will delete all its order data.')) return;
+      fetch('/table/' + TABLE_NO + '/close', {method: 'POST'})
+        .then(() => window.location.href = '/');
+    }
+
+    renderTabs();
+    renderItems();
+    renderOrder();
+  </script>
+</body>
+</html>
