@@ -57,6 +57,7 @@ def format_ticket(title, sections, table_no):
             out.append(f"  {i}-{line['text']}")
             for note in line.get("notes", []):
                 out.append(f"        {note}")
+            out.append("")  # blank line between items for easier reading
     out.append("Take Away" if table_no == "0" else f"Table {table_no}")
     return "\n".join(out)
 
@@ -153,6 +154,7 @@ def generate_tickets():
         for line in cust.get("lines", []):
             text = line["text"]
             notes = line.get("notes", [])
+            kitchen_note = line.get("kitchenNote", "")
             line_type = line.get("type", "item")
 
             if line_type == "combo":
@@ -169,6 +171,8 @@ def generate_tickets():
 
             if category in bar_categories or category is None:
                 # Prepared at the front; full item goes on the bar ticket.
+                # The full ingredient breakdown is kitchen-only info — never
+                # shown here, only the customer's actual requested changes.
                 bar_food_lines.append({"text": text, "notes": notes})
                 # Any hot filling inside it needs the kitchen to cook it and send it up.
                 text_lower = text.lower()
@@ -177,7 +181,10 @@ def generate_tickets():
                         kitchen_lines.append({"text": f"{ing.title()} for bar", "notes": []})
             else:
                 # A full cooked dish — kitchen makes and sends the whole thing.
-                kitchen_lines.append({"text": text, "notes": notes})
+                # Lead with the full ingredient breakdown so the chef never has
+                # to guess what a named dish (e.g. "Hope 1") actually contains.
+                kitchen_notes = ([kitchen_note] if kitchen_note else []) + notes
+                kitchen_lines.append({"text": text, "notes": kitchen_notes})
 
     bar_ticket = format_ticket(
         "Bar", [("Drinks", drink_lines), ("Food", bar_food_lines)], table_no
