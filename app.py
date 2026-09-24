@@ -13,9 +13,14 @@ with open("abbreviations.json", "r", encoding="utf-8") as f:
 with open("station_rules.json", "r", encoding="utf-8") as f:
     STATION_RULES = json.load(f)
 
-# In-memory table state: { "12": { "items": [ {name, price, qty, note}, ... ] } }
-# No history is kept — this is intentionally not a database.
+# In-memory table state for the old button-based flow (kept for backward compat).
+# { "12": { "items": [ {name, price, qty, note}, ... ] } }
 TABLES = {}
+
+# In-memory state for the abbreviation-driven order screen.
+# { "12": { "customers": [ {id, lines: [{text, notes, type, category}]}, ... ] } }
+# No history is kept — finishing a table wipes it, by design.
+ORDERS = {}
 
 
 def save_abbreviations():
@@ -50,7 +55,7 @@ def format_ticket(title, sections, table_no):
 
 @app.route("/")
 def home():
-    return render_template("tables.html", tables=TABLES)
+    return render_template("tables.html", tables=ORDERS)
 
 
 @app.route("/abbreviations", methods=["GET", "POST"])
@@ -74,9 +79,28 @@ def delete_abbreviation():
 
 @app.route("/order/new/<table_no>")
 def order_new(table_no):
+    existing = ORDERS.get(table_no, {"customers": []})
     return render_template(
-        "order_new.html", table_no=table_no, menu=MENU, abbreviations=ABBREVIATIONS
+        "order_new.html",
+        table_no=table_no,
+        menu=MENU,
+        abbreviations=ABBREVIATIONS,
+        initial_customers=existing["customers"],
     )
+
+
+@app.route("/order/<table_no>/save", methods=["POST"])
+def save_order(table_no):
+    data = request.json
+    ORDERS[table_no] = {"customers": data.get("customers", [])}
+    return jsonify({"ok": True})
+
+
+@app.route("/order/<table_no>/finish", methods=["POST"])
+def finish_order(table_no):
+    # Closing/finishing a table wipes its data — no history kept, by design.
+    ORDERS.pop(table_no, None)
+    return jsonify({"ok": True})
 
 
 @app.route("/order/generate", methods=["POST"])
