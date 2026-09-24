@@ -134,8 +134,12 @@
     <div class="comp-box">
       <h3 id="compItemName"></h3>
       <div class="comp-list" id="compList"></div>
+      <div id="breadNoteRow" style="margin-top: 10px; display: none;">
+        <input type="text" id="compBreadNote" placeholder="Bread colour/type (e.g. Brown, White, Soft roll)"
+          style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
+      </div>
       <div style="margin-top: 10px;">
-        <input type="text" id="compExtraNote" placeholder="Extra note (e.g. Brown, Soft roll)" data-bread-placeholder="Bread colour/type (e.g. Brown, White, Soft roll)"
+        <input type="text" id="compOtherNote" placeholder="Other note (e.g. Brown sauce, Salad cream)"
           style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
       </div>
       <div class="actions">
@@ -357,11 +361,9 @@
 
       pendingComponentTarget = { custId, input, itemName: displayName, category, hasSizes: !!sizes };
       document.getElementById('compItemName').textContent = displayName;
-      const noteInput = document.getElementById('compExtraNote');
-      noteInput.value = '';
-      noteInput.placeholder = sizes
-        ? noteInput.dataset.breadPlaceholder
-        : 'Extra note (e.g. Brown, Soft roll)';
+      document.getElementById('breadNoteRow').style.display = sizes ? '' : 'none';
+      document.getElementById('compBreadNote').value = '';
+      document.getElementById('compOtherNote').value = '';
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
 
@@ -394,8 +396,10 @@
       checkboxes.forEach(cb => {
         if (!cb.checked) notes.push('No ' + cb.value);
       });
-      const extraNote = document.getElementById('compExtraNote').value.trim();
-      if (extraNote) notes.push(hasSizes ? `Bread: ${extraNote}` : extraNote);
+      const breadNote = document.getElementById('compBreadNote').value.trim();
+      if (hasSizes && breadNote) notes.push(`Bread: ${breadNote}`);
+      const otherNote = document.getElementById('compOtherNote').value.trim();
+      if (otherNote) notes.push(otherNote);
       const sizeChoice = document.querySelector('#compList input[name="breadSize"]:checked');
       const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
       const finalName = sizeChoice ? `${itemName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : itemName;
