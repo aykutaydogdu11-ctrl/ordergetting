@@ -85,7 +85,7 @@
       display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 15px;
       border-bottom: 1px solid #eee;
     }
-    .comp-list input[type="checkbox"] { width: 20px; height: 20px; }
+    .comp-list input[type="checkbox"], .comp-list input[type="radio"] { width: 20px; height: 20px; }
     .comp-box .actions { display: flex; gap: 8px; margin-top: 14px; }
     .comp-box .actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; }
     .confirm-btn { background: #2d6a4f; color: white; }
@@ -162,6 +162,10 @@
     const ITEM_NAMES = [];
     const ITEM_COMPONENTS = {}; // itemName -> [component, ...] or undefined
     const ITEM_CATEGORY = {};   // itemName -> category name (exact match)
+    const ITEM_SIZES = {};      // itemName -> [size, size, ...] for sized items (roll/sand/crusty/bag)
+    const CATEGORY_SHORT_LABEL = {
+      "Sandwiches to Breakfasts": "Sandwich"
+    };
     const DISAMBIGUATION_SUFFIX = {
       "Omelettes": "Omelette",
       "Tortilla Wraps": "Wrap",
@@ -181,6 +185,9 @@
       cat.items.forEach(item => {
         ITEM_NAMES.push(item.name);
         ITEM_CATEGORY[item.name] = cat.name;
+        if (item.prices) {
+          ITEM_SIZES[item.name] = Object.keys(item.prices);
+        }
         DISAMBIGUATED_CATEGORY[disambiguate(item.name, cat.name)] = cat.name;
         if (cat.default_components) {
           ITEM_COMPONENTS[item.name] = cat.default_components;
@@ -306,8 +313,12 @@
       const abbrMatches = Object.entries(ABBR)
         .filter(([code]) => code.toLowerCase().startsWith(lastToken))
         .slice(0, 5);
+      const queryWords = lastToken.split(/\s+/).filter(Boolean);
       const itemMatches = ITEM_NAMES
-        .filter(name => name.toLowerCase().includes(lastToken))
+        .filter(name => {
+          const nameLower = name.toLowerCase();
+          return queryWords.every(w => nameLower.includes(w));
+        })
         .slice(0, 5);
 
       suggEl.innerHTML = '';
@@ -319,7 +330,9 @@
       });
       itemMatches.forEach(name => {
         const d = document.createElement('div');
-        d.innerHTML = name + '<small>menu search</small>';
+        const cat = ITEM_CATEGORY[name];
+        const label = CATEGORY_SHORT_LABEL[cat] || cat;
+        d.innerHTML = name + '<small>' + label + '</small>';
         d.onclick = () => selectMenuItem(custId, input, name);
         suggEl.appendChild(d);
       });
@@ -327,19 +340,36 @@
 
     function selectMenuItem(custId, input, itemName) {
       const components = ITEM_COMPONENTS[itemName];
+      const sizes = ITEM_SIZES[itemName]; // e.g. ["roll","sand","crusty","bag"]
       const category = ITEM_CATEGORY[itemName] || null;
       const displayName = category ? disambiguate(itemName, category) : itemName;
       document.getElementById('sugg-' + custId).innerHTML = '';
-      if (!components || components.length === 0) {
-        // No standard components to confirm — add directly.
+
+      if ((!components || components.length === 0) && !sizes) {
+        // Nothing to ask — add directly.
         applySuggestion(custId, input, displayName);
         return;
       }
+
       pendingComponentTarget = { custId, input, itemName: displayName, category };
       document.getElementById('compItemName').textContent = displayName;
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
-      components.forEach(comp => {
+
+      if (sizes) {
+        const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
+        const sizeGroup = document.createElement('div');
+        sizeGroup.style.marginBottom = '10px';
+        sizeGroup.innerHTML = '<div style="font-weight:bold; margin-bottom:6px;">Bread</div>';
+        sizes.forEach((size, i) => {
+          const label = document.createElement('label');
+          label.innerHTML = `<input type="radio" name="breadSize" value="${size}" ${i === 0 ? 'checked' : ''}> ${sizeLabels[size] || size}`;
+          sizeGroup.appendChild(label);
+        });
+        listEl.appendChild(sizeGroup);
+      }
+
+      (components || []).forEach(comp => {
         const label = document.createElement('label');
         label.innerHTML = `<input type="checkbox" value="${comp}" checked> ${comp}`;
         listEl.appendChild(label);
@@ -355,8 +385,11 @@
       checkboxes.forEach(cb => {
         if (!cb.checked) notes.push('No ' + cb.value);
       });
+      const sizeChoice = document.querySelector('#compList input[name="breadSize"]:checked');
+      const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
+      const finalName = sizeChoice ? `${itemName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : itemName;
       const cust = customers.find(c => c.id === custId);
-      cust.lines.push({ text: itemName, notes, type: 'item', category });
+      cust.lines.push({ text: finalName, notes, type: 'item', category });
       renderLines(cust);
       document.getElementById('compModal').classList.remove('show');
       pendingComponentTarget = null;
