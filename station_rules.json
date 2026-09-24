@@ -1,0 +1,31 @@
+{
+  "hot_ingredients": [
+    "bacon", "sausage", "egg", "hash brown", "mushroom", "black pudding",
+    "chicken tikka", "halloumi grilled"
+  ],
+  "bar_categories": [
+    "Sandwiches to Breakfasts",
+    "Panini",
+    "Tortilla Wraps",
+    "Hot Drinks",
+    "Cold Drinks",
+    "Fresh Milkshakes",
+    "Desserts"
+  ],
+  "kitchen_categories": [
+    "Breakfast",
+    "Extra Topping",
+    "Omelettes",
+    "On Toast",
+    "Small Breakfast",
+    "Soups",
+    "Main Courses",
+    "Burger Sensations",
+    "Hope Roast Dinner",
+    "Salads",
+    "Fish & Pies",
+    "Healthy Options",
+    "Jumbo Jacket Potatoes",
+    "Children's Meals"
+  ]
+}
