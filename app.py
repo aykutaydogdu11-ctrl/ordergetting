@@ -49,7 +49,7 @@ def format_ticket(title, sections, table_no):
             out.append(f"  {i}-{line['text']}")
             for note in line.get("notes", []):
                 out.append(f"        {note}")
-    out.append(f"Table {table_no}")
+    out.append("Take Away" if table_no == "0" else f"Table {table_no}")
     return "\n".join(out)
 
 
