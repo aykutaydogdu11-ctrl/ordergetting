@@ -561,19 +561,24 @@
       }
 
       const notes = [];
+      const normalComponents = [];
+      const deviationNotes = [];
       document.querySelectorAll('#compList .comp-row').forEach(row => {
         const checkbox = row.querySelector('.comp-check');
         const original = checkbox.dataset.original;
         if (!checkbox.checked) {
-          notes.push('No ' + original);
+          deviationNotes.push('No ' + original);
           return;
         }
         const current = row.querySelector('.comp-edit').value.trim();
         if (current && current.toLowerCase() !== original.toLowerCase()) {
-          notes.push(`${original} → ${current}`);
+          deviationNotes.push(`${original} → ${current}`);
+        } else {
+          normalComponents.push(original);
         }
-        // else: kept as standard, no note needed
       });
+      if (normalComponents.length > 0) notes.push(normalComponents.join(', '));
+      notes.push(...deviationNotes);
       const breadNote = document.getElementById('compBreadNote').value.trim();
       if (hasSizes && breadNote) notes.push(`Bread: ${breadNote}`);
       const toastedCheck = document.getElementById('toastedCheck');
