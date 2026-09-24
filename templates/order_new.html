@@ -133,6 +133,10 @@
   <div class="comp-modal" id="compModal">
     <div class="comp-box">
       <h3 id="compItemName"></h3>
+      <div id="customFillingRow" style="margin-bottom: 10px; display: none;">
+        <input type="text" id="compFillingName" placeholder="Filling (e.g. Hash Brown, Cheese & Ham)"
+          style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
+      </div>
       <div class="comp-list" id="compList"></div>
       <div id="breadNoteRow" style="margin-top: 10px; display: none;">
         <input type="text" id="compBreadNote" placeholder="Bread colour/type (e.g. Brown, White, Soft roll)"
@@ -284,6 +288,9 @@
             <button class="add-line-btn" onclick="commitLine(${cust.id}, document.getElementById('input-${cust.id}'))">Add</button>
             <div class="suggestions" id="sugg-${cust.id}"></div>
           </div>
+          <div style="margin-top: 6px;">
+            <a href="#" style="font-size: 13px; color: #2d6a4f;" onclick="openCustomSandwich(${cust.id}); return false;">+ Custom Sandwich (not on menu)</a>
+          </div>
           <div class="lines" id="lines-${cust.id}"></div>
         `;
         el.appendChild(div);
@@ -346,6 +353,39 @@
       });
     }
 
+    function openCustomSandwich(custId) {
+      document.getElementById('sugg-' + custId).innerHTML = '';
+      pendingComponentTarget = {
+        custId, itemName: null, category: 'Sandwiches to Breakfasts',
+        hasSizes: true, isCustom: true
+      };
+      document.getElementById('compItemName').textContent = 'Custom Sandwich';
+      document.getElementById('customFillingRow').style.display = '';
+      document.getElementById('compFillingName').value = '';
+      document.getElementById('breadNoteRow').style.display = '';
+      document.getElementById('compBreadNote').value = '';
+      document.getElementById('compOtherNote').value = '';
+
+      const listEl = document.getElementById('compList');
+      listEl.innerHTML = '';
+      const sizes = ['roll', 'sand', 'crusty', 'bag'];
+      const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
+      const sizeGroup = document.createElement('div');
+      sizeGroup.style.marginBottom = '10px';
+      sizeGroup.innerHTML = '<div style="font-weight:bold; margin-bottom:6px;">Bread</div>';
+      sizes.forEach((size, i) => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="radio" name="breadSize" value="${size}" ${i === 0 ? 'checked' : ''}> ${sizeLabels[size] || size}`;
+        sizeGroup.appendChild(label);
+      });
+      const toastedLabel = document.createElement('label');
+      toastedLabel.innerHTML = '<input type="checkbox" id="toastedCheck"> Toasted (+£0.30)';
+      sizeGroup.appendChild(toastedLabel);
+      listEl.appendChild(sizeGroup);
+
+      document.getElementById('compModal').classList.add('show');
+    }
+
     function selectMenuItem(custId, input, itemName) {
       const components = ITEM_COMPONENTS[itemName];
       const sizes = ITEM_SIZES[itemName]; // e.g. ["roll","sand","crusty","bag"]
@@ -361,6 +401,7 @@
 
       pendingComponentTarget = { custId, input, itemName: displayName, category, hasSizes: !!sizes };
       document.getElementById('compItemName').textContent = displayName;
+      document.getElementById('customFillingRow').style.display = 'none';
       document.getElementById('breadNoteRow').style.display = sizes ? '' : 'none';
       document.getElementById('compBreadNote').value = '';
       document.getElementById('compOtherNote').value = '';
@@ -377,12 +418,15 @@
           label.innerHTML = `<input type="radio" name="breadSize" value="${size}" ${i === 0 ? 'checked' : ''}> ${sizeLabels[size] || size}`;
           sizeGroup.appendChild(label);
         });
+        const toastedLabel = document.createElement('label');
+        toastedLabel.innerHTML = '<input type="checkbox" id="toastedCheck"> Toasted (+£0.30)';
+        sizeGroup.appendChild(toastedLabel);
         listEl.appendChild(sizeGroup);
       }
 
       (components || []).forEach(comp => {
         const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" value="${comp}" checked> ${comp}`;
+        label.innerHTML = `<input type="checkbox" class="comp-check" value="${comp}" checked> ${comp}`;
         listEl.appendChild(label);
       });
       document.getElementById('compModal').classList.add('show');
@@ -390,19 +434,30 @@
 
     function confirmComponents() {
       if (!pendingComponentTarget) return;
-      const { custId, itemName, category, hasSizes } = pendingComponentTarget;
-      const checkboxes = document.querySelectorAll('#compList input[type="checkbox"]');
+      const { custId, itemName, category, hasSizes, isCustom } = pendingComponentTarget;
+
+      if (isCustom) {
+        const filling = document.getElementById('compFillingName').value.trim();
+        if (!filling) { alert('Please type what the sandwich should contain.'); return; }
+      }
+
+      const checkboxes = document.querySelectorAll('#compList input.comp-check');
       const notes = [];
       checkboxes.forEach(cb => {
         if (!cb.checked) notes.push('No ' + cb.value);
       });
       const breadNote = document.getElementById('compBreadNote').value.trim();
       if (hasSizes && breadNote) notes.push(`Bread: ${breadNote}`);
+      const toastedCheck = document.getElementById('toastedCheck');
+      if (toastedCheck && toastedCheck.checked) notes.push('Toasted (+£0.30)');
       const otherNote = document.getElementById('compOtherNote').value.trim();
       if (otherNote) notes.push(otherNote);
+
       const sizeChoice = document.querySelector('#compList input[name="breadSize"]:checked');
       const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
-      const finalName = sizeChoice ? `${itemName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : itemName;
+      const baseName = isCustom ? document.getElementById('compFillingName').value.trim() : itemName;
+      const finalName = sizeChoice ? `${baseName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : baseName;
+
       const cust = customers.find(c => c.id === custId);
       cust.lines.push({ text: finalName, notes, type: 'item', category });
       renderLines(cust);
