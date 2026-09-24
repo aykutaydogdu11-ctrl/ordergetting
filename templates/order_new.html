@@ -134,6 +134,10 @@
     <div class="comp-box">
       <h3 id="compItemName"></h3>
       <div class="comp-list" id="compList"></div>
+      <div style="margin-top: 10px;">
+        <input type="text" id="compExtraNote" placeholder="Extra note (e.g. Brown, Soft roll)"
+          style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
+      </div>
       <div class="actions">
         <button class="confirm-btn" onclick="confirmComponents()">Add</button>
         <button class="cancel-btn" onclick="cancelComponents()">Cancel</button>
@@ -353,6 +357,7 @@
 
       pendingComponentTarget = { custId, input, itemName: displayName, category };
       document.getElementById('compItemName').textContent = displayName;
+      document.getElementById('compExtraNote').value = '';
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
 
@@ -385,6 +390,8 @@
       checkboxes.forEach(cb => {
         if (!cb.checked) notes.push('No ' + cb.value);
       });
+      const extraNote = document.getElementById('compExtraNote').value.trim();
+      if (extraNote) notes.push(extraNote);
       const sizeChoice = document.querySelector('#compList input[name="breadSize"]:checked');
       const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
       const finalName = sizeChoice ? `${itemName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : itemName;
