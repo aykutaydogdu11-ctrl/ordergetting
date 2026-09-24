@@ -117,7 +117,10 @@
       <pre id="kitchenTicket"></pre>
       <div class="actions">
         <button class="print-btn" onclick="printText('kitchenTicket')">Print Kitchen</button>
-        <button class="close-btn" onclick="closeModal()">Close</button>
+      </div>
+      <div class="actions">
+        <button class="close-btn" onclick="closeModal()">Keep Editing</button>
+        <button class="print-btn" onclick="finishTable()">Finish Table</button>
       </div>
     </div>
   </div>
@@ -373,6 +376,11 @@
 
     function closeModal() {
       document.getElementById('ticketModal').classList.remove('show');
+    }
+
+    function finishTable() {
+      if (!confirm('Finish this table and go back to the tables list? (No printer yet — this just clears the test order.)')) return;
+      window.location.href = '/';
     }
 
     addCustomer(); // start with one customer row
