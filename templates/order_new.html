@@ -143,6 +143,10 @@
           style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
       </div>
       <div style="margin-top: 10px;">
+        <input type="text" id="compExtras" placeholder="Extra toppings (e.g. Bacon, Cheese)"
+          style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
+      </div>
+      <div style="margin-top: 10px;">
         <input type="text" id="compOtherNote" placeholder="Other note (e.g. Brown sauce, Salad cream)"
           style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px;">
       </div>
@@ -208,6 +212,7 @@
     });
 
     let pendingComponentTarget = null; // { custId } while comp modal is open
+    const pendingEditNotes = {}; // custId -> notes[] carried over from a line being edited
 
     let customers = {{ initial_customers | tojson }}; // [{ id, lines: [{text, notes, type, category}] }]
     let nextId = customers.length
@@ -226,6 +231,17 @@
     function addCustomer() {
       customers.push({ id: nextId++, lines: [] });
       renderCustomers();
+      saveState();
+    }
+
+    function removeCustomer(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (cust && cust.lines.length > 0) {
+        if (!confirm('This customer has items on their order. Remove them anyway?')) return;
+      }
+      customers = customers.filter(c => c.id !== custId);
+      renderCustomers();
+      renderReceiptPreview();
       saveState();
     }
 
@@ -281,7 +297,10 @@
         const div = document.createElement('div');
         div.className = 'customer';
         div.innerHTML = `
-          <h3>Customer ${cust.id}</h3>
+          <h3 style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Customer ${cust.id}</span>
+            <button onclick="removeCustomer(${cust.id})" style="background:none; border:none; color:#c0392b; font-size:13px;">Remove</button>
+          </h3>
           <div class="type-row">
             <input type="text" id="input-${cust.id}" placeholder="Type code, e.g. E.B.Ch" 
               oninput="onType(${cust.id}, this)" onkeydown="onKeyDown(event, ${cust.id}, this)">
@@ -307,9 +326,26 @@
         div.className = 'line-block';
         let notesHtml = line.notes.map(n => `<div class="note">${n}</div>`).join('');
         div.innerHTML = `<div class="line-text"><span>${line.text}</span>
-          <button onclick="removeLine(${cust.id}, ${i})">&times;</button></div>${notesHtml}`;
+          <span>
+            <button onclick="editLine(${cust.id}, ${i})" style="color:#2d6a4f; background:none; border:none; font-size:16px;">&#9998;</button>
+            <button onclick="removeLine(${cust.id}, ${i})">&times;</button>
+          </span></div>${notesHtml}`;
         linesEl.appendChild(div);
       });
+    }
+
+    function editLine(custId, index) {
+      const cust = customers.find(c => c.id === custId);
+      const line = cust.lines[index];
+      cust.lines.splice(index, 1);
+      renderLines(cust);
+      if (line.notes.length > 0) {
+        pendingEditNotes[custId] = line.notes;
+      }
+      const inputEl = document.getElementById('input-' + custId);
+      inputEl.value = line.text;
+      inputEl.focus();
+      saveState();
     }
 
     function removeLine(custId, index) {
@@ -364,6 +400,7 @@
       document.getElementById('compFillingName').value = '';
       document.getElementById('breadNoteRow').style.display = '';
       document.getElementById('compBreadNote').value = '';
+      document.getElementById('compExtras').value = '';
       document.getElementById('compOtherNote').value = '';
 
       const listEl = document.getElementById('compList');
@@ -404,6 +441,7 @@
       document.getElementById('customFillingRow').style.display = 'none';
       document.getElementById('breadNoteRow').style.display = sizes ? '' : 'none';
       document.getElementById('compBreadNote').value = '';
+      document.getElementById('compExtras').value = '';
       document.getElementById('compOtherNote').value = '';
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
@@ -456,7 +494,9 @@
       const sizeChoice = document.querySelector('#compList input[name="breadSize"]:checked');
       const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
       const baseName = isCustom ? document.getElementById('compFillingName').value.trim() : itemName;
-      const finalName = sizeChoice ? `${baseName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : baseName;
+      let finalName = sizeChoice ? `${baseName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : baseName;
+      const extras = document.getElementById('compExtras').value.trim();
+      if (extras) finalName += ` + ${extras}`;
 
       const cust = customers.find(c => c.id === custId);
       cust.lines.push({ text: finalName, notes, type: 'item', category });
@@ -488,7 +528,9 @@
         cust.lines[cust.lines.length - 1].notes.push(buffer);
       } else {
         const resolved = resolveLine(buffer);
-        cust.lines.push({ text: resolved.text, notes: [], type: resolved.type, category: resolved.category });
+        const carriedNotes = pendingEditNotes[custId] || [];
+        delete pendingEditNotes[custId];
+        cust.lines.push({ text: resolved.text, notes: carriedNotes, type: resolved.type, category: resolved.category });
       }
       input.value = '';
       document.getElementById('sugg-' + custId).innerHTML = '';
