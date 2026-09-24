@@ -370,6 +370,7 @@
           const nameLower = name.toLowerCase();
           return queryWords.every(w => nameLower.includes(w));
         })
+        .sort((a, b) => a.length - b.length)
         .slice(0, 5);
 
       suggEl.innerHTML = '';
@@ -425,8 +426,10 @@
 
     function selectMenuItem(custId, input, itemName) {
       const components = ITEM_COMPONENTS[itemName];
-      const sizes = ITEM_SIZES[itemName]; // e.g. ["roll","sand","crusty","bag"]
       const category = ITEM_CATEGORY[itemName] || null;
+      // Only real sandwich-category items get asked about bread/toasted —
+      // never Extra Topping or any other category, even if pricing data changes later.
+      const sizes = category === 'Sandwiches to Breakfasts' ? ITEM_SIZES[itemName] : null;
       const displayName = category ? disambiguate(itemName, category) : itemName;
       document.getElementById('sugg-' + custId).innerHTML = '';
 
