@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Table {{ table_no }} - Moonrise Order App</title>
+  <title>New Order - Table {{ table_no }}</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, sans-serif; margin: 0; background: #f5f5f5; }
+    body { font-family: -apple-system, sans-serif; margin: 0; background: #f5f5f5; padding-bottom: 100px; }
     header {
       background: #2d6a4f; color: white; padding: 14px 16px;
       display: flex; justify-content: space-between; align-items: center;
@@ -14,253 +14,327 @@
     header a { color: white; text-decoration: none; font-size: 14px; }
     header h1 { font-size: 18px; margin: 0; }
 
-    .search-box { padding: 10px 12px; background: white; border-bottom: 1px solid #ddd; }
-    .search-box input {
-      width: 100%; padding: 12px 14px; font-size: 16px; border: 2px solid #2d6a4f;
-      border-radius: 10px;
+    .customer {
+      background: white; margin: 12px; border-radius: 10px; padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    .search-results { padding: 10px 12px; }
-    .search-results .item-btn { border: 1px solid #2d6a4f; }
-    .search-results .cat-label { font-size: 11px; color: #888; display: block; }
+    .customer h3 { margin: 0 0 8px 0; font-size: 15px; }
+    .type-row { position: relative; }
+    .type-row input {
+      width: 100%; padding: 12px; font-size: 16px; border: 2px solid #2d6a4f;
+      border-radius: 8px;
+    }
+    .suggestions {
+      position: absolute; left: 0; right: 0; background: white; border: 1px solid #ddd;
+      border-top: none; z-index: 5; max-height: 220px; overflow-y: auto;
+    }
+    .suggestions div {
+      padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer;
+    }
+    .suggestions div small { color: #888; display: block; font-size: 11px; }
 
-    .tabs { display: flex; overflow-x: auto; background: white; border-bottom: 1px solid #ddd; }
-    .tabs button {
-      flex: 0 0 auto; padding: 12px 16px; border: none; background: none;
-      font-size: 14px; white-space: nowrap; border-bottom: 3px solid transparent;
-    }
-    .tabs button.active { border-bottom: 3px solid #2d6a4f; font-weight: bold; }
+    .lines { margin-top: 10px; }
+    .line-block { padding: 8px 0; border-bottom: 1px solid #eee; }
+    .line-text { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+    .line-text button { background: none; border: none; color: #c0392b; font-size: 16px; }
+    .note { font-size: 13px; color: #777; margin-left: 6px; }
 
-    .items { padding: 10px 12px; }
-    .category { display: none; }
-    .category.active { display: block; }
-    .item-btn {
-      display: flex; justify-content: space-between; width: 100%; text-align: left;
-      padding: 14px; margin-bottom: 8px; background: white; border: 1px solid #ddd;
-      border-radius: 10px; font-size: 15px;
+    .add-customer-btn {
+      display: block; margin: 12px; padding: 12px; width: calc(100% - 24px);
+      background: white; border: 2px dashed #2d6a4f; border-radius: 10px; color: #2d6a4f; font-weight: bold;
     }
-    .item-btn .price { color: #2d6a4f; font-weight: bold; }
 
-    .order-panel {
-      position: sticky; bottom: 0; background: white; border-top: 2px solid #2d6a4f;
-      max-height: 45vh; overflow-y: auto; padding: 10px 12px;
+    .bottom-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-top: 2px solid #2d6a4f; padding: 10px 12px;
     }
-    .order-panel h2 { font-size: 15px; margin: 0 0 8px 0; }
-    .order-line {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px;
+    .bottom-bar button {
+      width: 100%; padding: 14px; font-size: 16px; font-weight: bold;
+      background: #2d6a4f; color: white; border: none; border-radius: 8px;
     }
-    .order-line .note { display: block; font-size: 12px; color: #777; }
-    .order-line button { background: none; border: none; color: #c0392b; font-size: 18px; }
-    .order-total { display: flex; justify-content: space-between; font-weight: bold; padding: 10px 0; font-size: 16px; }
-    .free-note { color: #2d6a4f; font-size: 12px; }
 
-    .action-row { display: flex; gap: 8px; margin-top: 8px; }
-    .action-row button {
-      flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold;
+    .ticket-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none;
+      align-items: center; justify-content: center; padding: 16px; z-index: 20;
     }
-    .send-btn { background: #2d6a4f; color: white; }
-    .pay-btn { background: #c0392b; color: white; }
+    .ticket-modal.show { display: flex; }
+    .ticket-box {
+      background: white; border-radius: 10px; padding: 16px; max-width: 480px; width: 100%;
+      max-height: 85vh; overflow-y: auto;
+    }
+    .ticket-box pre {
+      background: #f5f5f5; padding: 10px; border-radius: 8px; white-space: pre-wrap; font-size: 14px;
+    }
+    .ticket-box .actions { display: flex; gap: 8px; margin-top: 10px; }
+    .ticket-box .actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; }
+    .print-btn { background: #2d6a4f; color: white; }
+    .close-btn { background: #ddd; }
+
+    .comp-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none;
+      align-items: center; justify-content: center; padding: 16px; z-index: 25;
+    }
+    .comp-modal.show { display: flex; }
+    .comp-box { background: white; border-radius: 10px; padding: 18px; max-width: 340px; width: 100%; }
+    .comp-box h3 { margin: 0 0 12px 0; font-size: 16px; }
+    .comp-list label {
+      display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    .comp-list input[type="checkbox"] { width: 20px; height: 20px; }
+    .comp-box .actions { display: flex; gap: 8px; margin-top: 14px; }
+    .comp-box .actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; }
+    .confirm-btn { background: #2d6a4f; color: white; }
+    .cancel-btn { background: #ddd; }
   </style>
 </head>
 <body>
   <header>
     <a href="/">&larr; Tables</a>
-    <h1>Table {{ table_no }}</h1>
-    <span></span>
+    <h1>Table {{ table_no }} — New Order</h1>
+    <a href="/abbreviations">Codes</a>
   </header>
 
-  <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Type to search (e.g. egg, bacon)..." autocomplete="off" oninput="onSearch()">
+  <div id="customers"></div>
+  <button class="add-customer-btn" onclick="addCustomer()">+ Add Customer</button>
+
+  <div class="bottom-bar">
+    <button onclick="generateTickets()">Generate Tickets</button>
   </div>
-  <div class="search-results" id="searchResults" style="display:none;"></div>
 
-  <div class="tabs" id="tabs"></div>
-  <div class="items" id="items"></div>
-
-  <div class="order-panel">
-    <h2>Current Order</h2>
-    <div id="orderLines"></div>
-    <div class="order-total">
-      <span>Total</span>
-      <span id="orderTotal">£0.00</span>
+  <div class="ticket-modal" id="ticketModal">
+    <div class="ticket-box">
+      <h3>Bar Ticket</h3>
+      <pre id="barTicket"></pre>
+      <div class="actions">
+        <button class="print-btn" onclick="printText('barTicket')">Print Bar</button>
+      </div>
+      <h3>Kitchen Ticket</h3>
+      <pre id="kitchenTicket"></pre>
+      <div class="actions">
+        <button class="print-btn" onclick="printText('kitchenTicket')">Print Kitchen</button>
+        <button class="close-btn" onclick="closeModal()">Close</button>
+      </div>
     </div>
-    <div class="action-row">
-      <button class="send-btn" onclick="sendToKitchen()">Send to Kitchen/Bar</button>
-      <button class="pay-btn" onclick="payAndClose()">Pay &amp; Close</button>
+  </div>
+
+  <div class="comp-modal" id="compModal">
+    <div class="comp-box">
+      <h3 id="compItemName"></h3>
+      <div class="comp-list" id="compList"></div>
+      <div class="actions">
+        <button class="confirm-btn" onclick="confirmComponents()">Add</button>
+        <button class="cancel-btn" onclick="cancelComponents()">Cancel</button>
+      </div>
     </div>
   </div>
 
   <script>
     const TABLE_NO = "{{ table_no }}";
     const MENU = {{ menu | tojson }};
-    let order = {{ order | tojson }};
+    const ABBR = {{ abbreviations | tojson }};
 
-    function renderTabs() {
-      const tabsEl = document.getElementById('tabs');
-      tabsEl.innerHTML = '';
-      MENU.categories.forEach((cat, i) => {
-        const btn = document.createElement('button');
-        btn.textContent = cat.name;
-        btn.className = i === 0 ? 'active' : '';
-        btn.onclick = () => showCategory(i);
-        tabsEl.appendChild(btn);
-      });
-    }
-
-    function renderItems() {
-      const itemsEl = document.getElementById('items');
-      itemsEl.innerHTML = '';
-      MENU.categories.forEach((cat, i) => {
-        const div = document.createElement('div');
-        div.className = 'category' + (i === 0 ? ' active' : '');
-        div.id = 'cat-' + i;
-        cat.items.forEach(item => {
-          const btn = document.createElement('button');
-          btn.className = 'item-btn';
-          // Handle sized items (roll/sand/crusty/bag) vs flat-price items
-          if (item.prices) {
-            let inner = '<span>' + item.name + (item.note ? ' — ' + item.note : '') + '</span><span>';
-            for (const [size, price] of Object.entries(item.prices)) {
-              inner += '<span class="price" style="margin-left:8px" onclick="event.stopPropagation(); addItem(\'' +
-                item.name.replace(/'/g, "\\'") + ' (' + size + ')\', ' + price + ', \'' + cat.name.replace(/'/g, "\\'") + '\')">' +
-                size + ' £' + price.toFixed(2) + '</span>';
-            }
-            inner += '</span>';
-            btn.innerHTML = inner;
-          } else {
-            const price = item.price === null ? 0 : item.price;
-            btn.innerHTML = '<span>' + item.name + (item.note ? ' — <small>' + item.note + '</small>' : '') + '</span><span class="price">£' + price.toFixed(2) + '</span>';
-            btn.onclick = () => addItem(item.name, price, cat.name, cat.free_drink_included);
-          }
-          div.appendChild(btn);
-        });
-        itemsEl.appendChild(div);
-      });
-    }
-
-    // Flatten all items across all categories once, for fast searching
-    const ALL_ITEMS = [];
+    // Flat list of item names for suggestion search, plus lookup of which
+    // category (and default components) each item name belongs to.
+    const ITEM_NAMES = [];
+    const ITEM_COMPONENTS = {}; // itemName -> [component, ...] or undefined
     MENU.categories.forEach(cat => {
       cat.items.forEach(item => {
-        if (item.prices) {
-          for (const [size, price] of Object.entries(item.prices)) {
-            ALL_ITEMS.push({
-              displayName: item.name + ' (' + size + ')',
-              price, note: item.note || '', categoryName: cat.name,
-              freeDrinkIncluded: cat.free_drink_included
-            });
-          }
-        } else {
-          ALL_ITEMS.push({
-            displayName: item.name,
-            price: item.price === null ? 0 : item.price,
-            note: item.note || '', categoryName: cat.name,
-            freeDrinkIncluded: cat.free_drink_included
-          });
+        ITEM_NAMES.push(item.name);
+        if (cat.default_components) {
+          ITEM_COMPONENTS[item.name] = cat.default_components;
         }
       });
     });
 
-    function onSearch() {
-      const q = document.getElementById('searchInput').value.trim().toLowerCase();
-      const resultsEl = document.getElementById('searchResults');
-      const tabsEl = document.getElementById('tabs');
-      const itemsEl = document.getElementById('items');
+    let pendingComponentTarget = null; // { custId } while comp modal is open
 
-      if (!q) {
-        resultsEl.style.display = 'none';
-        tabsEl.style.display = '';
-        itemsEl.style.display = '';
-        return;
-      }
+    let customers = []; // [{ id, lines: [{text, notes: []}] }]
+    let nextId = 1;
 
-      tabsEl.style.display = 'none';
-      itemsEl.style.display = 'none';
-      resultsEl.style.display = '';
-
-      const matches = ALL_ITEMS.filter(it => it.displayName.toLowerCase().includes(q));
-      resultsEl.innerHTML = '';
-      if (matches.length === 0) {
-        resultsEl.innerHTML = '<p>No matches.</p>';
-        return;
-      }
-      matches.slice(0, 30).forEach(it => {
-        const btn = document.createElement('button');
-        btn.className = 'item-btn';
-        btn.innerHTML = '<span>' + it.displayName + '<span class="cat-label">' + it.categoryName + '</span></span><span class="price">£' + it.price.toFixed(2) + '</span>';
-        btn.onclick = () => {
-          addItem(it.displayName, it.price, it.categoryName, it.freeDrinkIncluded);
-          document.getElementById('searchInput').value = '';
-          onSearch();
-        };
-        resultsEl.appendChild(btn);
-      });
+    function addCustomer() {
+      customers.push({ id: nextId++, lines: [] });
+      renderCustomers();
     }
 
-    function showCategory(i) {
-      document.querySelectorAll('.tabs button').forEach((b, idx) => b.classList.toggle('active', idx === i));
-      document.querySelectorAll('.category').forEach((c, idx) => c.classList.toggle('active', idx === i));
+    function resolveToken(token) {
+      const t = token.trim();
+      if (!t) return '';
+      const key = t.toLowerCase();
+      return ABBR[key] || t;
     }
 
-    function addItem(name, price, categoryName, freeDrinkIncluded) {
-      let note = '';
-      if (freeDrinkIncluded) {
-        note = prompt('Free tea or coffee included — which one? (leave blank to skip)') || '';
-        if (note) note = 'Free drink: ' + note;
-      } else {
-        note = prompt('Any note for this item? (e.g. no chips, no tomato)') || '';
-      }
-      fetch('/table/' + TABLE_NO + '/add', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name, price, qty: 1, note})
-      }).then(r => r.json()).then(data => {
-        order = data.order;
-        renderOrder();
-      });
+    function resolveBuffer(buffer) {
+      // Split on '.' — each segment is a shorthand code or free word
+      return buffer.split('.').map(resolveToken).filter(Boolean).join(', ');
     }
 
-    function removeItem(index) {
-      fetch('/table/' + TABLE_NO + '/remove', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({index})
-      }).then(r => r.json()).then(data => {
-        order = data.order;
-        renderOrder();
-      });
+    function isNoteText(buffer) {
+      return /^no\s+/i.test(buffer.trim());
     }
 
-    function renderOrder() {
-      const linesEl = document.getElementById('orderLines');
-      linesEl.innerHTML = '';
-      let total = 0;
-      order.items.forEach((item, i) => {
-        total += item.price * item.qty;
+    function renderCustomers() {
+      const el = document.getElementById('customers');
+      el.innerHTML = '';
+      customers.forEach(cust => {
         const div = document.createElement('div');
-        div.className = 'order-line';
-        div.innerHTML = '<span>' + item.qty + 'x ' + item.name +
-          (item.note ? '<span class="note">' + item.note + '</span>' : '') +
-          '</span><span>£' + (item.price * item.qty).toFixed(2) + '<button onclick="removeItem(' + i + ')">&times;</button></span>';
+        div.className = 'customer';
+        div.innerHTML = `
+          <h3>Customer ${cust.id}</h3>
+          <div class="type-row">
+            <input type="text" placeholder="Type code, e.g. E.B.Ch then Enter" 
+              oninput="onType(${cust.id}, this)" onkeydown="onKeyDown(event, ${cust.id}, this)">
+            <div class="suggestions" id="sugg-${cust.id}"></div>
+          </div>
+          <div class="lines" id="lines-${cust.id}"></div>
+        `;
+        el.appendChild(div);
+        renderLines(cust);
+      });
+    }
+
+    function renderLines(cust) {
+      const linesEl = document.getElementById('lines-' + cust.id);
+      if (!linesEl) return;
+      linesEl.innerHTML = '';
+      cust.lines.forEach((line, i) => {
+        const div = document.createElement('div');
+        div.className = 'line-block';
+        let notesHtml = line.notes.map(n => `<div class="note">${n}</div>`).join('');
+        div.innerHTML = `<div class="line-text"><span>${line.text}</span>
+          <button onclick="removeLine(${cust.id}, ${i})">&times;</button></div>${notesHtml}`;
         linesEl.appendChild(div);
       });
-      document.getElementById('orderTotal').textContent = '£' + total.toFixed(2);
     }
 
-    function sendToKitchen() {
-      // Printer integration goes here later. For now just confirm.
-      alert('Sent to kitchen/bar (printer integration coming soon).');
+    function removeLine(custId, index) {
+      const cust = customers.find(c => c.id === custId);
+      cust.lines.splice(index, 1);
+      renderLines(cust);
     }
 
-    function payAndClose() {
-      if (!confirm('Close table ' + TABLE_NO + '? This will delete all its order data.')) return;
-      fetch('/table/' + TABLE_NO + '/close', {method: 'POST'})
-        .then(() => window.location.href = '/');
+    function onType(custId, input) {
+      const suggEl = document.getElementById('sugg-' + custId);
+      const buffer = input.value;
+      const lastToken = buffer.split('.').pop().trim().toLowerCase();
+      if (!lastToken) { suggEl.innerHTML = ''; return; }
+
+      const abbrMatches = Object.entries(ABBR)
+        .filter(([code]) => code.toLowerCase().startsWith(lastToken))
+        .slice(0, 5);
+      const itemMatches = ITEM_NAMES
+        .filter(name => name.toLowerCase().includes(lastToken))
+        .slice(0, 5);
+
+      suggEl.innerHTML = '';
+      abbrMatches.forEach(([code, full]) => {
+        const d = document.createElement('div');
+        d.innerHTML = full + '<small>code: ' + code + '</small>';
+        d.onclick = () => applySuggestion(custId, input, full);
+        suggEl.appendChild(d);
+      });
+      itemMatches.forEach(name => {
+        const d = document.createElement('div');
+        d.innerHTML = name + '<small>menu search</small>';
+        d.onclick = () => selectMenuItem(custId, input, name);
+        suggEl.appendChild(d);
+      });
     }
 
-    renderTabs();
-    renderItems();
-    renderOrder();
+    function selectMenuItem(custId, input, itemName) {
+      const components = ITEM_COMPONENTS[itemName];
+      document.getElementById('sugg-' + custId).innerHTML = '';
+      if (!components || components.length === 0) {
+        // No standard components to confirm — add directly.
+        applySuggestion(custId, input, itemName);
+        return;
+      }
+      pendingComponentTarget = { custId, input, itemName };
+      document.getElementById('compItemName').textContent = itemName;
+      const listEl = document.getElementById('compList');
+      listEl.innerHTML = '';
+      components.forEach(comp => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="checkbox" value="${comp}" checked> ${comp}`;
+        listEl.appendChild(label);
+      });
+      document.getElementById('compModal').classList.add('show');
+    }
+
+    function confirmComponents() {
+      if (!pendingComponentTarget) return;
+      const { custId, itemName } = pendingComponentTarget;
+      const checkboxes = document.querySelectorAll('#compList input[type="checkbox"]');
+      const notes = [];
+      checkboxes.forEach(cb => {
+        if (!cb.checked) notes.push('No ' + cb.value);
+      });
+      const cust = customers.find(c => c.id === custId);
+      cust.lines.push({ text: itemName, notes });
+      renderLines(cust);
+      document.getElementById('compModal').classList.remove('show');
+      pendingComponentTarget = null;
+    }
+
+    function cancelComponents() {
+      document.getElementById('compModal').classList.remove('show');
+      pendingComponentTarget = null;
+    }
+
+    function applySuggestion(custId, input, resolvedWord) {
+      const parts = input.value.split('.');
+      parts[parts.length - 1] = ' ' + resolvedWord;
+      input.value = parts.join('.') + '.';
+      document.getElementById('sugg-' + custId).innerHTML = '';
+      input.focus();
+    }
+
+    function onKeyDown(e, custId, input) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const buffer = input.value.trim();
+      if (!buffer) return;
+      const cust = customers.find(c => c.id === custId);
+
+      if (isNoteText(buffer) && cust.lines.length > 0) {
+        cust.lines[cust.lines.length - 1].notes.push(buffer);
+      } else {
+        cust.lines.push({ text: resolveBuffer(buffer), notes: [] });
+      }
+      input.value = '';
+      document.getElementById('sugg-' + custId).innerHTML = '';
+      renderLines(cust);
+    }
+
+    function generateTickets() {
+      const payload = {
+        table_no: TABLE_NO,
+        customers: customers.map(c => ({ lines: c.lines }))
+      };
+      fetch('/order/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      }).then(r => r.json()).then(data => {
+        document.getElementById('barTicket').textContent = data.bar_ticket;
+        document.getElementById('kitchenTicket').textContent = data.kitchen_ticket;
+        document.getElementById('ticketModal').classList.add('show');
+      });
+    }
+
+    function printText(elId) {
+      const text = document.getElementById(elId).textContent;
+      const w = window.open('', '_blank');
+      w.document.write('<pre style="font-family: monospace; font-size: 14px;">' + text + '</pre>');
+      w.document.close();
+      w.print();
+    }
+
+    function closeModal() {
+      document.getElementById('ticketModal').classList.remove('show');
+    }
+
+    addCustomer(); // start with one customer row
   </script>
 </body>
 </html>
