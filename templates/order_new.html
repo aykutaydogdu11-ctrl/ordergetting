@@ -184,13 +184,13 @@
     const ABBR = {{ abbreviations | tojson }};
     const CATEGORY_SHORTCUTS = {{ category_shortcuts | tojson }}; // code -> category name
 
-    // Flat list of item names for suggestion search, plus lookup of which
-    // category (and default components) each item name belongs to.
-    const ITEM_NAMES = [];
-    const ITEM_COMPONENTS = {}; // itemName -> [component, ...] or undefined
-    const ITEM_CATEGORY = {};   // itemName -> category name (exact match)
-    const ITEM_SIZES = {};      // itemName -> [size, size, ...] for sized items (roll/sand/crusty/bag)
-    const CATEGORY_ITEMS = {};  // category name -> [itemName, itemName, ...]
+    // Every (category, item) pair, kept separate even when two categories
+    // share an item name (e.g. "Bacon" exists in both Sandwiches and Extra
+    // Topping) — never collapsed into a single name-only lookup.
+    const ALL_ITEM_ENTRIES = []; // [{name, category}, ...]
+    const CATEGORY_ITEMS = {};   // category name -> [itemName, itemName, ...]
+    const ITEM_CATEGORY = {};    // itemName -> category name (best-effort, last one wins — only used as a fallback when typing raw text with no category context)
+    const DISAMBIGUATED_CATEGORY = {}; // "Mediterranean Omelette" -> "Omelettes" (same best-effort fallback)
     const CATEGORY_SHORT_LABEL = {
       "Sandwiches to Breakfasts": "Sandwich"
     };
@@ -203,7 +203,6 @@
       "Salads": "Salad",
       "Hope Roast Dinner": "Roast Dinner"
     };
-    const DISAMBIGUATED_CATEGORY = {}; // "Mediterranean Omelette" -> "Omelettes"
 
     function disambiguate(name, category) {
       const suffix = DISAMBIGUATION_SUFFIX[category];
@@ -212,18 +211,20 @@
       return name + ' ' + suffix;
     }
 
+    function findMenuItem(categoryName, itemName) {
+      const cat = MENU.categories.find(c => c.name === categoryName);
+      if (!cat) return null;
+      const item = cat.items.find(i => i.name === itemName);
+      if (!item) return null;
+      return { item, category: cat };
+    }
+
     MENU.categories.forEach(cat => {
       CATEGORY_ITEMS[cat.name] = cat.items.map(item => item.name);
       cat.items.forEach(item => {
-        ITEM_NAMES.push(item.name);
+        ALL_ITEM_ENTRIES.push({ name: item.name, category: cat.name });
         ITEM_CATEGORY[item.name] = cat.name;
-        if (item.prices) {
-          ITEM_SIZES[item.name] = Object.keys(item.prices);
-        }
         DISAMBIGUATED_CATEGORY[disambiguate(item.name, cat.name)] = cat.name;
-        if (cat.default_components) {
-          ITEM_COMPONENTS[item.name] = cat.default_components;
-        }
       });
     });
 
@@ -383,12 +384,12 @@
       const categoryMatches = Object.entries(CATEGORY_SHORTCUTS)
         .filter(([code]) => code.toLowerCase().startsWith(lastToken));
       const queryWords = lastToken.split(/\s+/).filter(Boolean);
-      const itemMatches = ITEM_NAMES
-        .filter(name => {
-          const nameLower = name.toLowerCase();
+      const itemMatches = ALL_ITEM_ENTRIES
+        .filter(entry => {
+          const nameLower = entry.name.toLowerCase();
           return queryWords.every(w => nameLower.includes(w));
         })
-        .sort((a, b) => a.length - b.length)
+        .sort((a, b) => a.name.length - b.name.length)
         .slice(0, 5);
 
       suggEl.innerHTML = '';
@@ -405,12 +406,11 @@
         d.onclick = () => applySuggestion(custId, input, full);
         suggEl.appendChild(d);
       });
-      itemMatches.forEach(name => {
+      itemMatches.forEach(entry => {
         const d = document.createElement('div');
-        const cat = ITEM_CATEGORY[name];
-        const label = CATEGORY_SHORT_LABEL[cat] || cat;
-        d.innerHTML = name + '<small>' + label + '</small>';
-        d.onclick = () => selectMenuItem(custId, input, name);
+        const label = CATEGORY_SHORT_LABEL[entry.category] || entry.category;
+        d.innerHTML = entry.name + '<small>' + label + '</small>';
+        d.onclick = () => selectMenuItem(custId, input, entry.name, entry.category);
         suggEl.appendChild(d);
       });
     }
@@ -460,7 +460,7 @@
         btn.textContent = name;
         btn.onclick = () => {
           closeCategoryPicker();
-          selectMenuItem(custId, input, name);
+          selectMenuItem(custId, input, name, categoryName);
         };
         listEl.appendChild(btn);
       });
@@ -471,12 +471,15 @@
       document.getElementById('categoryPickerModal').classList.remove('show');
     }
 
-    function selectMenuItem(custId, input, itemName) {
-      const components = ITEM_COMPONENTS[itemName];
-      const category = ITEM_CATEGORY[itemName] || null;
+    function selectMenuItem(custId, input, itemName, category) {
+      const found = findMenuItem(category, itemName);
+      const cat = found ? found.category : null;
+      const item = found ? found.item : null;
+      const components = cat && cat.default_components ? cat.default_components : null;
       // Only real sandwich-category items get asked about bread/toasted —
       // never Extra Topping or any other category, even if pricing data changes later.
-      const sizes = category === 'Sandwiches to Breakfasts' ? ITEM_SIZES[itemName] : null;
+      const sizes = (category === 'Sandwiches to Breakfasts' && item && item.prices)
+        ? Object.keys(item.prices) : null;
       const displayName = category ? disambiguate(itemName, category) : itemName;
       document.getElementById('sugg-' + custId).innerHTML = '';
 
