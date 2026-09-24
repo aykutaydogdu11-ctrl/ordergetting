@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abbreviations - Moonrise Order App</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    header a { color: #2d6a4f; text-decoration: none; }
+    h1 { font-size: 20px; margin: 0; }
+    form.add-form { display: flex; gap: 8px; margin-bottom: 20px; }
+    form.add-form input { padding: 10px; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; }
+    form.add-form input[name="code"] { width: 90px; }
+    form.add-form input[name="full"] { flex: 1; }
+    form.add-form button { padding: 10px 16px; background: #2d6a4f; color: white; border: none; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+    th { background: #eee; font-size: 13px; }
+    button.del { background: none; border: none; color: #c0392b; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">&larr; Tables</a>
+    <h1>Abbreviations</h1>
+    <span></span>
+  </header>
+
+  <p>Kısaltma girip tam ürün adını yaz, "Add" de. Örnek: <code>E</code> &rarr; <code>Egg</code>, <code>Ch</code> &rarr; <code>Chips</code>, <code>T</code> &rarr; <code>Tea</code>.</p>
+
+  <form class="add-form" method="post">
+    <input type="text" name="code" placeholder="Code (e.g. E)" required>
+    <input type="text" name="full" placeholder="Full item (e.g. Egg)" required>
+    <button type="submit">Add</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Full item</th><th></th></tr>
+    </thead>
+    <tbody id="abbrTable">
+      {% for code, full in abbreviations.items() %}
+      <tr data-code="{{ code }}">
+        <td>{{ code }}</td>
+        <td>{{ full }}</td>
+        <td><button class="del" onclick="deleteAbbr('{{ code }}', this)">&times;</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    function deleteAbbr(code, btn) {
+      fetch('/abbreviations/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code})
+      }).then(() => btn.closest('tr').remove());
+    }
+  </script>
+</body>
+</html>
