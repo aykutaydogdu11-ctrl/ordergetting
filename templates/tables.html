@@ -31,7 +31,7 @@
   <h2>Open Tables</h2>
   <div class="open-tables">
     {% for t in tables.keys() %}
-      <a href="/order/new/{{ t }}">Table {{ t }}</a>
+      <a href="/order/new/{{ t }}">{% if t == '0' %}Take Away{% else %}Table {{ t }}{% endif %}</a>
     {% else %}
       <p>No open tables right now.</p>
     {% endfor %}
