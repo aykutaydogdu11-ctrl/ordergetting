@@ -102,6 +102,11 @@
   <div id="customers"></div>
   <button class="add-customer-btn" onclick="addCustomer()">+ Add Customer</button>
 
+  <div class="customer">
+    <h3>Receipt</h3>
+    <pre id="receiptPreview" style="white-space: pre-wrap; font-size: 15px; margin: 0;"></pre>
+  </div>
+
   <div class="bottom-bar">
     <button onclick="generateTickets()">Generate Tickets</button>
   </div>
@@ -132,6 +137,17 @@
       <div class="actions">
         <button class="confirm-btn" onclick="confirmComponents()">Add</button>
         <button class="cancel-btn" onclick="cancelComponents()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticket-modal" id="receiptModal">
+    <div class="ticket-box">
+      <h3>Receipt</h3>
+      <pre id="receiptText"></pre>
+      <div class="actions">
+        <button class="close-btn" onclick="closeReceiptModal()">Back</button>
+        <button class="print-btn" onclick="confirmFinish()">Confirm &amp; Close Table</button>
       </div>
     </div>
   </div>
@@ -180,6 +196,7 @@
       : 1;
 
     function saveState() {
+      renderReceiptPreview();
       fetch('/order/' + TABLE_NO + '/save', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -214,6 +231,24 @@
       const category = ITEM_CATEGORY[resolved] || DISAMBIGUATED_CATEGORY[resolved] || null;
       const text = category ? disambiguate(resolved, category) : resolved;
       return { text, type: 'item', category };
+    }
+
+    function buildReceiptText() {
+      const lines = [];
+      customers.forEach((cust, ci) => {
+        if (cust.lines.length === 0) return;
+        lines.push(`Customer ${ci + 1}`);
+        cust.lines.forEach(line => {
+          lines.push(line.text);
+          line.notes.forEach(n => lines.push('  ' + n));
+        });
+      });
+      return lines.length ? lines.join('\n') : '(no items yet)';
+    }
+
+    function renderReceiptPreview() {
+      const el = document.getElementById('receiptPreview');
+      if (el) el.textContent = buildReceiptText();
     }
 
     function isNoteText(buffer) {
@@ -393,7 +428,15 @@
     }
 
     function finishTable() {
-      if (!confirm('Finish this table and go back to the tables list? This clears its order — no history is kept.')) return;
+      document.getElementById('receiptText').textContent = buildReceiptText();
+      document.getElementById('receiptModal').classList.add('show');
+    }
+
+    function closeReceiptModal() {
+      document.getElementById('receiptModal').classList.remove('show');
+    }
+
+    function confirmFinish() {
       fetch('/order/' + TABLE_NO + '/finish', { method: 'POST' })
         .then(() => window.location.href = '/');
     }
@@ -403,6 +446,7 @@
     } else {
       renderCustomers(); // restore this table's in-progress order
     }
+    renderReceiptPreview();
   </script>
 </body>
 </html>
