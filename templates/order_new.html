@@ -19,10 +19,14 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .customer h3 { margin: 0 0 8px 0; font-size: 15px; }
-    .type-row { position: relative; }
+    .type-row { position: relative; display: flex; gap: 6px; }
     .type-row input {
-      width: 100%; padding: 12px; font-size: 16px; border: 2px solid #2d6a4f;
+      flex: 1; padding: 12px; font-size: 16px; border: 2px solid #2d6a4f;
       border-radius: 8px;
+    }
+    .type-row button.add-line-btn {
+      padding: 0 16px; font-size: 15px; font-weight: bold; background: #2d6a4f;
+      color: white; border: none; border-radius: 8px;
     }
     .suggestions {
       position: absolute; left: 0; right: 0; background: white; border: 1px solid #ddd;
@@ -182,8 +186,9 @@
         div.innerHTML = `
           <h3>Customer ${cust.id}</h3>
           <div class="type-row">
-            <input type="text" placeholder="Type code, e.g. E.B.Ch then Enter" 
+            <input type="text" id="input-${cust.id}" placeholder="Type code, e.g. E.B.Ch" 
               oninput="onType(${cust.id}, this)" onkeydown="onKeyDown(event, ${cust.id}, this)">
+            <button class="add-line-btn" onclick="commitLine(${cust.id}, document.getElementById('input-${cust.id}'))">Add</button>
             <div class="suggestions" id="sugg-${cust.id}"></div>
           </div>
           <div class="lines" id="lines-${cust.id}"></div>
@@ -289,9 +294,7 @@
       input.focus();
     }
 
-    function onKeyDown(e, custId, input) {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
+    function commitLine(custId, input) {
       const buffer = input.value.trim();
       if (!buffer) return;
       const cust = customers.find(c => c.id === custId);
@@ -304,6 +307,12 @@
       input.value = '';
       document.getElementById('sugg-' + custId).innerHTML = '';
       renderLines(cust);
+    }
+
+    function onKeyDown(e, custId, input) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      commitLine(custId, input);
     }
 
     function generateTickets() {
