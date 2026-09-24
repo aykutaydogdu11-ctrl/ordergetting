@@ -497,9 +497,11 @@
       const sizes = (category === 'Sandwiches to Breakfasts' && item && item.prices)
         ? Object.keys(item.prices) : null;
       const displayName = category ? disambiguate(itemName, category) : itemName;
+      const isHotDrink = category === 'Hot Drinks';
+      const hasSyrupOption = isHotDrink && item && item.note && item.note.toLowerCase().includes('vanilla');
       document.getElementById('sugg-' + custId).innerHTML = '';
 
-      if ((!components || components.length === 0) && !sizes) {
+      if ((!components || components.length === 0) && !sizes && !isHotDrink) {
         // Nothing to ask — add directly.
         applySuggestion(custId, input, displayName);
         return;
@@ -514,6 +516,44 @@
       document.getElementById('compOtherNote').value = '';
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
+
+      if (isHotDrink) {
+        const milkGroup = document.createElement('div');
+        milkGroup.style.marginBottom = '10px';
+        milkGroup.innerHTML = '<div style="font-weight:bold; margin-bottom:6px;">Milk</div>';
+        [
+          { value: 'normal', label: 'Normal (as usual)' },
+          { value: 'black', label: 'Black / No milk' },
+          { value: 'side', label: 'Milk on the side' }
+        ].forEach((opt, i) => {
+          const label = document.createElement('label');
+          label.innerHTML = `<input type="radio" name="milkPref" value="${opt.value}" ${i === 0 ? 'checked' : ''}> ${opt.label}`;
+          milkGroup.appendChild(label);
+        });
+        listEl.appendChild(milkGroup);
+
+        const altMilkGroup = document.createElement('div');
+        altMilkGroup.style.marginBottom = '10px';
+        altMilkGroup.innerHTML = '<div style="font-weight:bold; margin-bottom:6px;">Alt milk (+£0.50)</div>';
+        ['None', 'Soya', 'Oat', 'Almond'].forEach((m, i) => {
+          const label = document.createElement('label');
+          label.innerHTML = `<input type="radio" name="altMilk" value="${m}" ${i === 0 ? 'checked' : ''}> ${m}`;
+          altMilkGroup.appendChild(label);
+        });
+        listEl.appendChild(altMilkGroup);
+
+        if (hasSyrupOption) {
+          const syrupGroup = document.createElement('div');
+          syrupGroup.style.marginBottom = '10px';
+          syrupGroup.innerHTML = '<div style="font-weight:bold; margin-bottom:6px;">Syrup (+£0.50 each)</div>';
+          ['Vanilla', 'Caramel', 'Hazelnut'].forEach(s => {
+            const label = document.createElement('label');
+            label.innerHTML = `<input type="checkbox" class="syrup-check" value="${s}"> ${s}`;
+            syrupGroup.appendChild(label);
+          });
+          listEl.appendChild(syrupGroup);
+        }
+      }
 
       if (sizes) {
         const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
@@ -583,6 +623,17 @@
       if (hasSizes && breadNote) notes.push(`Bread: ${breadNote}`);
       const toastedCheck = document.getElementById('toastedCheck');
       if (toastedCheck && toastedCheck.checked) notes.push('Toasted (+£0.30)');
+      const milkPref = document.querySelector('#compList input[name="milkPref"]:checked');
+      if (milkPref && milkPref.value !== 'normal') {
+        notes.push(milkPref.value === 'black' ? 'Black / No milk' : 'Milk on the side');
+      }
+      const altMilk = document.querySelector('#compList input[name="altMilk"]:checked');
+      if (altMilk && altMilk.value !== 'None') {
+        notes.push(`${altMilk.value} milk (+£0.50)`);
+      }
+      document.querySelectorAll('#compList .syrup-check:checked').forEach(cb => {
+        notes.push(`${cb.value} syrup (+£0.50)`);
+      });
       const otherNote = document.getElementById('compOtherNote').value.trim();
       if (otherNote) notes.push(otherNote);
 
