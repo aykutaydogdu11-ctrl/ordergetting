@@ -79,7 +79,10 @@
       align-items: center; justify-content: center; padding: 16px; z-index: 25;
     }
     .comp-modal.show { display: flex; }
-    .comp-box { background: white; border-radius: 10px; padding: 18px; max-width: 340px; width: 100%; }
+    .comp-box {
+      background: white; border-radius: 10px; padding: 18px; max-width: 340px; width: 100%;
+      max-height: 85vh; overflow-y: auto;
+    }
     .comp-box h3 { margin: 0 0 12px 0; font-size: 16px; }
     .comp-list label {
       display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 15px;
@@ -487,11 +490,16 @@
       const cat = found ? found.category : null;
       const item = found ? found.item : null;
       // Category-level defaults (Sandwiches' salad, Omelettes' chips/salad) take
-      // priority; otherwise, if the item's own description lists its contents
-      // (e.g. Breakfast: "Egg, bacon, sausage, chips, beans & toast"), offer those.
+      // priority; otherwise, ONLY for the Breakfast category (where the note is
+      // genuinely a list of included contents, e.g. "Egg, bacon, sausage, chips,
+      // beans & toast") do we parse the note into a checklist — other categories'
+      // notes (like Latte's "Add vanilla, caramel & hazelnut extra 50p") describe
+      // optional extras, not standard contents, and must not be treated the same way.
+      const NOTE_COMPONENT_CATEGORIES = ['Breakfast'];
       const components = (cat && cat.default_components)
         ? cat.default_components
-        : (item && item.note ? parseComponentsFromNote(item.note) : null);
+        : (NOTE_COMPONENT_CATEGORIES.includes(category) && item && item.note
+          ? parseComponentsFromNote(item.note) : null);
       // Only real sandwich-category items get asked about bread/toasted —
       // never Extra Topping or any other category, even if pricing data changes later.
       const sizes = (category === 'Sandwiches to Breakfasts' && item && item.prices)
