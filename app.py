@@ -83,7 +83,7 @@ def order_new(table_no):
 def generate_tickets():
     data = request.json
     table_no = data["table_no"]
-    customers = data["customers"]  # [{lines: [{text, notes: [...]}]}]
+    customers = data["customers"]  # [{lines: [{text, notes, type, category}]}]
 
     hot_ingredients = STATION_RULES["hot_ingredients"]
     bar_categories = set(STATION_RULES["bar_categories"])
@@ -96,7 +96,15 @@ def generate_tickets():
         for line in cust.get("lines", []):
             text = line["text"]
             notes = line.get("notes", [])
-            category = guess_category(text)
+            line_type = line.get("type", "item")
+
+            if line_type == "combo":
+                # A hand-built combo of ingredients (e.g. "Egg, Bacon, Chips")
+                # is always one complete plate made and sent by the kitchen.
+                kitchen_lines.append({"text": text, "notes": notes})
+                continue
+
+            category = line.get("category") or guess_category(text)
 
             if category in ("Hot Drinks", "Cold Drinks", "Fresh Milkshakes"):
                 drink_lines.append({"text": text, "notes": notes})
