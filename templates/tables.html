@@ -20,6 +20,7 @@
 </head>
 <body>
   <h1>Moonrise Order App</h1>
+  <p><a href="/abbreviations">Manage Abbreviations</a></p>
 
   <form class="table-input" action="/table/redirect" method="get" onsubmit="return goToTable(event)">
     <input type="text" id="tableInput" placeholder="Table number" inputmode="numeric">
@@ -29,7 +30,7 @@
   <h2>Open Tables</h2>
   <div class="open-tables">
     {% for t in tables.keys() %}
-      <a href="/table/{{ t }}">Table {{ t }}</a>
+      <a href="/order/new/{{ t }}">Table {{ t }}</a>
     {% else %}
       <p>No open tables right now.</p>
     {% endfor %}
@@ -39,7 +40,7 @@
     function goToTable(e) {
       e.preventDefault();
       const val = document.getElementById('tableInput').value.trim();
-      if (val) window.location.href = '/table/' + encodeURIComponent(val);
+      if (val) window.location.href = '/order/new/' + encodeURIComponent(val);
       return false;
     }
   </script>
