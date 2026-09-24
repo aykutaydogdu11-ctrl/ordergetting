@@ -174,12 +174,23 @@
 
     let pendingComponentTarget = null; // { custId } while comp modal is open
 
-    let customers = []; // [{ id, lines: [{text, notes: []}] }]
-    let nextId = 1;
+    let customers = {{ initial_customers | tojson }}; // [{ id, lines: [{text, notes, type, category}] }]
+    let nextId = customers.length
+      ? Math.max(...customers.map(c => c.id)) + 1
+      : 1;
+
+    function saveState() {
+      fetch('/order/' + TABLE_NO + '/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ customers })
+      });
+    }
 
     function addCustomer() {
       customers.push({ id: nextId++, lines: [] });
       renderCustomers();
+      saveState();
     }
 
     function resolveToken(token) {
@@ -248,6 +259,7 @@
       const cust = customers.find(c => c.id === custId);
       cust.lines.splice(index, 1);
       renderLines(cust);
+      saveState();
     }
 
     function onType(custId, input) {
@@ -313,6 +325,7 @@
       renderLines(cust);
       document.getElementById('compModal').classList.remove('show');
       pendingComponentTarget = null;
+      saveState();
     }
 
     function cancelComponents() {
@@ -342,6 +355,7 @@
       input.value = '';
       document.getElementById('sugg-' + custId).innerHTML = '';
       renderLines(cust);
+      saveState();
     }
 
     function onKeyDown(e, custId, input) {
@@ -379,11 +393,16 @@
     }
 
     function finishTable() {
-      if (!confirm('Finish this table and go back to the tables list? (No printer yet — this just clears the test order.)')) return;
-      window.location.href = '/';
+      if (!confirm('Finish this table and go back to the tables list? This clears its order — no history is kept.')) return;
+      fetch('/order/' + TABLE_NO + '/finish', { method: 'POST' })
+        .then(() => window.location.href = '/');
     }
 
-    addCustomer(); // start with one customer row
+    if (customers.length === 0) {
+      addCustomer(); // start with one blank customer row
+    } else {
+      renderCustomers(); // restore this table's in-progress order
+    }
   </script>
 </body>
 </html>
