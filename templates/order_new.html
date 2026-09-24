@@ -219,6 +219,16 @@
       return { item, category: cat };
     }
 
+    function parseComponentsFromNote(note) {
+      // "Egg, bacon, sausage, chips, beans & toast" -> ["Egg","Bacon","Sausage","Chips","Beans","Toast"]
+      if (!note) return [];
+      return note.replace(/\s*&\s*/g, ', ')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+    }
+
     MENU.categories.forEach(cat => {
       CATEGORY_ITEMS[cat.name] = cat.items.map(item => item.name);
       cat.items.forEach(item => {
@@ -475,7 +485,12 @@
       const found = findMenuItem(category, itemName);
       const cat = found ? found.category : null;
       const item = found ? found.item : null;
-      const components = cat && cat.default_components ? cat.default_components : null;
+      // Category-level defaults (Sandwiches' salad, Omelettes' chips/salad) take
+      // priority; otherwise, if the item's own description lists its contents
+      // (e.g. Breakfast: "Egg, bacon, sausage, chips, beans & toast"), offer those.
+      const components = (cat && cat.default_components)
+        ? cat.default_components
+        : (item && item.note ? parseComponentsFromNote(item.note) : null);
       // Only real sandwich-category items get asked about bread/toasted —
       // never Extra Topping or any other category, even if pricing data changes later.
       const sizes = (category === 'Sandwiches to Breakfasts' && item && item.prices)
@@ -515,10 +530,22 @@
         listEl.appendChild(sizeGroup);
       }
 
+      if (components && components.length > 0) {
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:12px; color:#888; margin-bottom:4px;';
+        hint.textContent = 'Untick what they don\'t want, or edit the text to swap it for something else.';
+        listEl.appendChild(hint);
+      }
+
       (components || []).forEach(comp => {
-        const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" class="comp-check" value="${comp}" checked> ${comp}`;
-        listEl.appendChild(label);
+        const row = document.createElement('div');
+        row.className = 'comp-row';
+        row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #eee;';
+        row.innerHTML = `
+          <input type="checkbox" class="comp-check" data-original="${comp}" checked style="width:20px; height:20px; flex-shrink:0;">
+          <input type="text" class="comp-edit" value="${comp}" style="flex:1; border:1px solid #ddd; border-radius:6px; padding:6px 8px; font-size:14px;">
+        `;
+        listEl.appendChild(row);
       });
       document.getElementById('compModal').classList.add('show');
     }
@@ -532,10 +559,19 @@
         if (!filling) { alert('Please type what the sandwich should contain.'); return; }
       }
 
-      const checkboxes = document.querySelectorAll('#compList input.comp-check');
       const notes = [];
-      checkboxes.forEach(cb => {
-        if (!cb.checked) notes.push('No ' + cb.value);
+      document.querySelectorAll('#compList .comp-row').forEach(row => {
+        const checkbox = row.querySelector('.comp-check');
+        const original = checkbox.dataset.original;
+        if (!checkbox.checked) {
+          notes.push('No ' + original);
+          return;
+        }
+        const current = row.querySelector('.comp-edit').value.trim();
+        if (current && current.toLowerCase() !== original.toLowerCase()) {
+          notes.push(`${original} → ${current}`);
+        }
+        // else: kept as standard, no note needed
       });
       const breadNote = document.getElementById('compBreadNote').value.trim();
       if (hasSizes && breadNote) notes.push(`Bread: ${breadNote}`);
