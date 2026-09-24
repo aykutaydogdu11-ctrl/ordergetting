@@ -168,10 +168,21 @@
     </div>
   </div>
 
+  <div class="comp-modal" id="categoryPickerModal">
+    <div class="comp-box">
+      <h3 id="categoryPickerTitle"></h3>
+      <div id="categoryPickerList" style="max-height: 50vh; overflow-y: auto;"></div>
+      <div class="actions">
+        <button class="cancel-btn" onclick="closeCategoryPicker()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const TABLE_NO = "{{ table_no }}";
     const MENU = {{ menu | tojson }};
     const ABBR = {{ abbreviations | tojson }};
+    const CATEGORY_SHORTCUTS = {{ category_shortcuts | tojson }}; // code -> category name
 
     // Flat list of item names for suggestion search, plus lookup of which
     // category (and default components) each item name belongs to.
@@ -179,6 +190,7 @@
     const ITEM_COMPONENTS = {}; // itemName -> [component, ...] or undefined
     const ITEM_CATEGORY = {};   // itemName -> category name (exact match)
     const ITEM_SIZES = {};      // itemName -> [size, size, ...] for sized items (roll/sand/crusty/bag)
+    const CATEGORY_ITEMS = {};  // category name -> [itemName, itemName, ...]
     const CATEGORY_SHORT_LABEL = {
       "Sandwiches to Breakfasts": "Sandwich"
     };
@@ -198,6 +210,7 @@
     }
 
     MENU.categories.forEach(cat => {
+      CATEGORY_ITEMS[cat.name] = cat.items.map(item => item.name);
       cat.items.forEach(item => {
         ITEM_NAMES.push(item.name);
         ITEM_CATEGORY[item.name] = cat.name;
@@ -364,6 +377,8 @@
       const abbrMatches = Object.entries(ABBR)
         .filter(([code]) => code.toLowerCase().startsWith(lastToken))
         .slice(0, 5);
+      const categoryMatches = Object.entries(CATEGORY_SHORTCUTS)
+        .filter(([code]) => code.toLowerCase().startsWith(lastToken));
       const queryWords = lastToken.split(/\s+/).filter(Boolean);
       const itemMatches = ITEM_NAMES
         .filter(name => {
@@ -374,6 +389,13 @@
         .slice(0, 5);
 
       suggEl.innerHTML = '';
+      categoryMatches.forEach(([code, categoryName]) => {
+        const d = document.createElement('div');
+        d.style.fontWeight = 'bold';
+        d.innerHTML = '🍽 ' + categoryName + ' options...<small>code: ' + code + '</small>';
+        d.onclick = () => openCategoryPicker(custId, input, categoryName);
+        suggEl.appendChild(d);
+      });
       abbrMatches.forEach(([code, full]) => {
         const d = document.createElement('div');
         d.innerHTML = full + '<small>code: ' + code + '</small>';
@@ -422,6 +444,28 @@
       listEl.appendChild(sizeGroup);
 
       document.getElementById('compModal').classList.add('show');
+    }
+
+    function openCategoryPicker(custId, input, categoryName) {
+      document.getElementById('sugg-' + custId).innerHTML = '';
+      document.getElementById('categoryPickerTitle').textContent = categoryName;
+      const listEl = document.getElementById('categoryPickerList');
+      listEl.innerHTML = '';
+      (CATEGORY_ITEMS[categoryName] || []).forEach(name => {
+        const btn = document.createElement('div');
+        btn.style.cssText = 'padding:12px; border-bottom:1px solid #eee; font-size:15px; cursor:pointer;';
+        btn.textContent = name;
+        btn.onclick = () => {
+          closeCategoryPicker();
+          selectMenuItem(custId, input, name);
+        };
+        listEl.appendChild(btn);
+      });
+      document.getElementById('categoryPickerModal').classList.add('show');
+    }
+
+    function closeCategoryPicker() {
+      document.getElementById('categoryPickerModal').classList.remove('show');
     }
 
     function selectMenuItem(custId, input, itemName) {
