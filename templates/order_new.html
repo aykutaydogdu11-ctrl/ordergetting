@@ -562,23 +562,23 @@
 
       const notes = [];
       const normalComponents = [];
-      const deviationNotes = [];
       document.querySelectorAll('#compList .comp-row').forEach(row => {
         const checkbox = row.querySelector('.comp-check');
         const original = checkbox.dataset.original;
         if (!checkbox.checked) {
-          deviationNotes.push('No ' + original);
+          notes.push('No ' + original);
           return;
         }
         const current = row.querySelector('.comp-edit').value.trim();
         if (current && current.toLowerCase() !== original.toLowerCase()) {
-          deviationNotes.push(`${original} → ${current}`);
+          notes.push(`${original} → ${current}`);
         } else {
           normalComponents.push(original);
         }
       });
-      if (normalComponents.length > 0) notes.push(normalComponents.join(', '));
-      notes.push(...deviationNotes);
+      // The full "what's inside" breakdown is for the kitchen's eyes only —
+      // it must never show up on the bar ticket or the customer-facing receipt.
+      const kitchenNote = normalComponents.length > 0 ? normalComponents.join(', ') : '';
       const breadNote = document.getElementById('compBreadNote').value.trim();
       if (hasSizes && breadNote) notes.push(`Bread: ${breadNote}`);
       const toastedCheck = document.getElementById('toastedCheck');
@@ -594,7 +594,7 @@
       if (extras) finalName += ` + ${extras}`;
 
       const cust = customers.find(c => c.id === custId);
-      cust.lines.push({ text: finalName, notes, type: 'item', category });
+      cust.lines.push({ text: finalName, notes, kitchenNote, type: 'item', category });
       renderLines(cust);
       document.getElementById('compModal').classList.remove('show');
       pendingComponentTarget = null;
