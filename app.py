@@ -10,6 +10,9 @@ with open("menu.json", "r", encoding="utf-8") as f:
 with open("abbreviations.json", "r", encoding="utf-8") as f:
     ABBREVIATIONS = json.load(f)["abbreviations"]
 
+with open("category_shortcuts.json", "r", encoding="utf-8") as f:
+    CATEGORY_SHORTCUTS = json.load(f)["shortcuts"]
+
 with open("station_rules.json", "r", encoding="utf-8") as f:
     STATION_RULES = json.load(f)
 
@@ -26,6 +29,11 @@ ORDERS = {}
 def save_abbreviations():
     with open("abbreviations.json", "w", encoding="utf-8") as f:
         json.dump({"abbreviations": ABBREVIATIONS}, f, indent=2, ensure_ascii=False)
+
+
+def save_category_shortcuts():
+    with open("category_shortcuts.json", "w", encoding="utf-8") as f:
+        json.dump({"shortcuts": CATEGORY_SHORTCUTS}, f, indent=2, ensure_ascii=False)
 
 
 def guess_category(text):
@@ -77,6 +85,30 @@ def delete_abbreviation():
     return jsonify({"ok": True})
 
 
+@app.route("/category-shortcuts", methods=["GET", "POST"])
+def category_shortcuts_page():
+    if request.method == "POST":
+        code = request.form.get("code", "").strip().lower()
+        category = request.form.get("category", "").strip()
+        if code and category:
+            CATEGORY_SHORTCUTS[code] = category
+            save_category_shortcuts()
+    category_names = [cat["name"] for cat in MENU["categories"]]
+    return render_template(
+        "category_shortcuts.html",
+        shortcuts=CATEGORY_SHORTCUTS,
+        category_names=category_names,
+    )
+
+
+@app.route("/category-shortcuts/delete", methods=["POST"])
+def delete_category_shortcut():
+    code = request.json.get("code", "").strip().lower()
+    CATEGORY_SHORTCUTS.pop(code, None)
+    save_category_shortcuts()
+    return jsonify({"ok": True})
+
+
 @app.route("/order/new/<table_no>")
 def order_new(table_no):
     existing = ORDERS.get(table_no, {"customers": []})
@@ -85,6 +117,7 @@ def order_new(table_no):
         table_no=table_no,
         menu=MENU,
         abbreviations=ABBREVIATIONS,
+        category_shortcuts=CATEGORY_SHORTCUTS,
         initial_customers=existing["customers"],
     )
 
