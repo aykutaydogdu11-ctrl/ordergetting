@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Category Shortcuts - Moonrise Order App</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    header a { color: #2d6a4f; text-decoration: none; }
+    h1 { font-size: 20px; margin: 0; }
+    form.add-form { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    form.add-form input, form.add-form select { padding: 10px; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; }
+    form.add-form input[name="code"] { width: 90px; }
+    form.add-form select[name="category"] { flex: 1; min-width: 180px; }
+    form.add-form button { padding: 10px 16px; background: #2d6a4f; color: white; border: none; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+    th { background: #eee; font-size: 13px; }
+    button.del { background: none; border: none; color: #c0392b; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">&larr; Tables</a>
+    <h1>Category Shortcuts</h1>
+    <a href="/abbreviations">Abbreviations</a>
+  </header>
+
+  <p>Bir kod yazıp bir kategori seç, "Add" de. Sipariş ekranında bu kodu yazınca o kategorinin tüm ürünleri listelenir. Örnek: <code>Ms</code> &rarr; <code>Fresh Milkshakes</code>.</p>
+
+  <form class="add-form" method="post">
+    <input type="text" name="code" placeholder="Code (e.g. Ms)" required>
+    <select name="category" required>
+      {% for name in category_names %}
+      <option value="{{ name }}">{{ name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Add</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Category</th><th></th></tr>
+    </thead>
+    <tbody id="shortcutTable">
+      {% for code, category in shortcuts.items() %}
+      <tr data-code="{{ code }}">
+        <td>{{ code }}</td>
+        <td>{{ category }}</td>
+        <td><button class="del" onclick="deleteShortcut('{{ code }}', this)">&times;</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    function deleteShortcut(code, btn) {
+      fetch('/category-shortcuts/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code})
+      }).then(() => btn.closest('tr').remove());
+    }
+  </script>
+</body>
+</html>
