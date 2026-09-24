@@ -142,9 +142,27 @@
     // category (and default components) each item name belongs to.
     const ITEM_NAMES = [];
     const ITEM_COMPONENTS = {}; // itemName -> [component, ...] or undefined
+    const ITEM_CATEGORY = {};   // itemName -> category name (exact match)
+    const DISAMBIGUATION_SUFFIX = {
+      "Omelettes": "Omelette",
+      "Tortilla Wraps": "Wrap",
+      "Panini": "Panini",
+      "Jumbo Jacket Potatoes": "Jacket Potato"
+    };
+    const DISAMBIGUATED_CATEGORY = {}; // "Mediterranean Omelette" -> "Omelettes"
+
+    function disambiguate(name, category) {
+      const suffix = DISAMBIGUATION_SUFFIX[category];
+      if (!suffix) return name;
+      if (name.toLowerCase().includes(suffix.toLowerCase())) return name;
+      return name + ' ' + suffix;
+    }
+
     MENU.categories.forEach(cat => {
       cat.items.forEach(item => {
         ITEM_NAMES.push(item.name);
+        ITEM_CATEGORY[item.name] = cat.name;
+        DISAMBIGUATED_CATEGORY[disambiguate(item.name, cat.name)] = cat.name;
         if (cat.default_components) {
           ITEM_COMPONENTS[item.name] = cat.default_components;
         }
@@ -168,9 +186,20 @@
       return ABBR[key] || t;
     }
 
-    function resolveBuffer(buffer) {
-      // Split on '.' — each segment is a shorthand code or free word
-      return buffer.split('.').map(resolveToken).filter(Boolean).join(', ');
+    function resolveLine(buffer) {
+      const tokens = buffer.split('.').map(t => t.trim()).filter(Boolean);
+      if (tokens.length > 1) {
+        // Multiple ingredients typed together (e.g. "E.B.Ch") — this is a
+        // hand-built combo plate, always sent to the kitchen as one line.
+        const text = tokens.map(resolveToken).join(', ');
+        return { text, type: 'combo', category: null };
+      }
+      // Single token — resolve it and look up its exact category if we
+      // recognise it as a real menu item name, so we don't have to guess later.
+      const resolved = resolveToken(tokens[0] || '');
+      const category = ITEM_CATEGORY[resolved] || DISAMBIGUATED_CATEGORY[resolved] || null;
+      const text = category ? disambiguate(resolved, category) : resolved;
+      return { text, type: 'item', category };
     }
 
     function isNoteText(buffer) {
@@ -248,14 +277,16 @@
 
     function selectMenuItem(custId, input, itemName) {
       const components = ITEM_COMPONENTS[itemName];
+      const category = ITEM_CATEGORY[itemName] || null;
+      const displayName = category ? disambiguate(itemName, category) : itemName;
       document.getElementById('sugg-' + custId).innerHTML = '';
       if (!components || components.length === 0) {
         // No standard components to confirm — add directly.
-        applySuggestion(custId, input, itemName);
+        applySuggestion(custId, input, displayName);
         return;
       }
-      pendingComponentTarget = { custId, input, itemName };
-      document.getElementById('compItemName').textContent = itemName;
+      pendingComponentTarget = { custId, input, itemName: displayName, category };
+      document.getElementById('compItemName').textContent = displayName;
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
       components.forEach(comp => {
@@ -268,14 +299,14 @@
 
     function confirmComponents() {
       if (!pendingComponentTarget) return;
-      const { custId, itemName } = pendingComponentTarget;
+      const { custId, itemName, category } = pendingComponentTarget;
       const checkboxes = document.querySelectorAll('#compList input[type="checkbox"]');
       const notes = [];
       checkboxes.forEach(cb => {
         if (!cb.checked) notes.push('No ' + cb.value);
       });
       const cust = customers.find(c => c.id === custId);
-      cust.lines.push({ text: itemName, notes });
+      cust.lines.push({ text: itemName, notes, type: 'item', category });
       renderLines(cust);
       document.getElementById('compModal').classList.remove('show');
       pendingComponentTarget = null;
@@ -302,7 +333,8 @@
       if (isNoteText(buffer) && cust.lines.length > 0) {
         cust.lines[cust.lines.length - 1].notes.push(buffer);
       } else {
-        cust.lines.push({ text: resolveBuffer(buffer), notes: [] });
+        const resolved = resolveLine(buffer);
+        cust.lines.push({ text: resolved.text, notes: [], type: resolved.type, category: resolved.category });
       }
       input.value = '';
       document.getElementById('sugg-' + custId).innerHTML = '';
