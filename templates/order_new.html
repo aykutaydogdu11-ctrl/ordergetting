@@ -309,6 +309,34 @@
       }).join(' ');
     }
 
+    const BREAD_LABEL_TO_SIZE = {
+      'roll': 'roll', 'sandwich': 'sand', 'sand': 'sand',
+      'crusty': 'crusty', 'bag': 'bag', 'baguette': 'baguette'
+    };
+
+    function detectSandwichShorthand(phrase) {
+      // "Se bgt" (Scrambled Egg + baguette abbreviation) -> recognised as a
+      // sandwich request with the bread already specified, so we skip
+      // straight to the sandwich modal instead of asking "how served?".
+      const words = phrase.split(/\s+/).filter(Boolean);
+      if (words.length < 2) return null;
+      let breadSize = null;
+      let breadWordIndex = -1;
+      words.forEach((w, i) => {
+        if (breadSize !== null) return;
+        const resolved = (ABBR[w.toLowerCase()] || w).toLowerCase();
+        if (BREAD_LABEL_TO_SIZE[resolved]) {
+          breadSize = BREAD_LABEL_TO_SIZE[resolved];
+          breadWordIndex = i;
+        }
+      });
+      if (breadSize === null) return null;
+      const fillingWords = words.filter((_, i) => i !== breadWordIndex);
+      const filling = fillingWords.map(w => ABBR[w.toLowerCase()] || w).join(' ');
+      if (!filling) return null;
+      return { filling, breadSize };
+    }
+
     function resolveLine(buffer) {
       const tokens = buffer.split('.').map(t => t.trim()).filter(Boolean);
       if (tokens.length > 1) {
@@ -500,7 +528,7 @@
       }
     }
 
-    function openCustomSandwich(custId, prefillFilling) {
+    function openCustomSandwich(custId, prefillFilling, preselectedSize) {
       document.getElementById('sugg-' + custId).innerHTML = '';
       pendingComponentTarget = {
         custId, itemName: null, category: 'Sandwiches to Breakfasts',
@@ -516,20 +544,41 @@
 
       const listEl = document.getElementById('compList');
       listEl.innerHTML = '';
-      const sizes = ['roll', 'sand', 'crusty', 'bag'];
-      const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
+      const sizes = ['roll', 'sand', 'crusty', 'bag', 'baguette'];
+      const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag', baguette: 'Baguette' };
       const sizeGroup = document.createElement('div');
       sizeGroup.style.marginBottom = '10px';
       sizeGroup.innerHTML = '<div style="font-weight:bold; margin-bottom:6px;">Bread</div>';
       sizes.forEach((size, i) => {
         const label = document.createElement('label');
-        label.innerHTML = `<input type="radio" name="breadSize" value="${size}" ${i === 0 ? 'checked' : ''}> ${sizeLabels[size] || size}`;
+        const isChecked = preselectedSize ? size === preselectedSize : i === 0;
+        label.innerHTML = `<input type="radio" name="breadSize" value="${size}" ${isChecked ? 'checked' : ''}> ${sizeLabels[size] || size}`;
         sizeGroup.appendChild(label);
       });
       const toastedLabel = document.createElement('label');
       toastedLabel.innerHTML = '<input type="checkbox" id="toastedCheck"> Toasted (+£0.30)';
       sizeGroup.appendChild(toastedLabel);
       listEl.appendChild(sizeGroup);
+
+      // Same salad checklist a real sandwich gets — untick or edit as needed.
+      const saladCat = MENU.categories.find(c => c.name === 'Sandwiches to Breakfasts');
+      const salad = (saladCat && saladCat.default_components) || [];
+      if (salad.length > 0) {
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:12px; color:#888; margin-bottom:4px;';
+        hint.textContent = 'Untick what they don\'t want, or edit the text to swap it for something else.';
+        listEl.appendChild(hint);
+        salad.forEach(comp => {
+          const row = document.createElement('div');
+          row.className = 'comp-row';
+          row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #eee;';
+          row.innerHTML = `
+            <input type="checkbox" class="comp-check" data-original="${comp}" checked style="width:20px; height:20px; flex-shrink:0;">
+            <input type="text" class="comp-edit" value="${comp}" style="flex:1; border:1px solid #ddd; border-radius:6px; padding:6px 8px; font-size:14px;">
+          `;
+          listEl.appendChild(row);
+        });
+      }
 
       document.getElementById('compModal').classList.add('show');
     }
@@ -717,7 +766,7 @@
       if (otherNote) notes.push(otherNote);
 
       const sizeChoice = document.querySelector('#compList input[name="breadSize"]:checked');
-      const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag' };
+      const sizeLabels = { roll: 'Roll', sand: 'Sandwich', crusty: 'Crusty', bag: 'Bag', baguette: 'Baguette' };
       const baseName = isCustom ? document.getElementById('compFillingName').value.trim() : itemName;
       let finalName = sizeChoice ? `${baseName} (${sizeLabels[sizeChoice.value] || sizeChoice.value})` : baseName;
       const extras = document.getElementById('compExtras').value.trim();
@@ -756,6 +805,16 @@
         renderLines(cust);
         saveState();
         return;
+      }
+
+      if (!buffer.includes('.')) {
+        const shorthand = detectSandwichShorthand(buffer);
+        if (shorthand) {
+          input.value = '';
+          document.getElementById('sugg-' + custId).innerHTML = '';
+          openCustomSandwich(custId, shorthand.filling, shorthand.breadSize);
+          return;
+        }
       }
 
       const resolved = resolveLine(buffer);
