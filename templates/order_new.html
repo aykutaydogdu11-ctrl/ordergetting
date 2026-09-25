@@ -171,6 +171,23 @@
     </div>
   </div>
 
+  <div class="comp-modal" id="confirmPriceModal">
+    <div class="comp-box">
+      <h3>Confirm Price</h3>
+      <p style="font-size:14px;">Not sure what this is: <strong id="confirmPriceText"></strong></p>
+      <div id="confirmPriceSuggestions" class="comp-list"></div>
+      <div style="margin-top:10px;">
+        <input type="text" id="confirmPriceCustomName" placeholder="Or type the item name"
+          style="width:100%; padding:8px; border:1px solid #ccc; border-radius:8px; font-size:14px; margin-bottom:6px;">
+        <input type="number" step="0.01" id="confirmPriceCustomAmount" placeholder="Price £"
+          style="width:100%; padding:8px; border:1px solid #ccc; border-radius:8px; font-size:14px;">
+      </div>
+      <div class="actions">
+        <button class="confirm-btn" onclick="confirmPriceChoice()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div class="comp-modal" id="aiModal">
     <div class="comp-box">
       <h3>🤖 AI Suggestion</h3>
@@ -955,8 +972,82 @@
       document.getElementById('ticketModal').classList.remove('show');
     }
 
+    let unresolvedQueue = []; // items still needing a Confirm Price choice
+
     function finishTable() {
-      document.getElementById('receiptText').textContent = buildReceiptText();
+      fetch('/order/price', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ customers })
+      }).then(r => r.json()).then(handlePricingResult);
+    }
+
+    function handlePricingResult(result) {
+      if (result.unresolved && result.unresolved.length > 0) {
+        unresolvedQueue = result.unresolved.slice();
+        showNextUnresolved();
+        return;
+      }
+      showPricedReceipt(result);
+    }
+
+    function showNextUnresolved() {
+      if (unresolvedQueue.length === 0) {
+        // Everything's priced now — ask again to get the final totals.
+        finishTable();
+        return;
+      }
+      const item = unresolvedQueue[0];
+      document.getElementById('confirmPriceText').textContent = item.text;
+      document.getElementById('confirmPriceCustomName').value = '';
+      document.getElementById('confirmPriceCustomAmount').value = '';
+      const listEl = document.getElementById('confirmPriceSuggestions');
+      listEl.innerHTML = '';
+      (item.suggestions || []).forEach((s, i) => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="radio" name="priceSuggestion" value="${i}" ${i === 0 ? 'checked' : ''}> ${s.name} — £${s.price.toFixed(2)}`;
+        listEl.appendChild(label);
+      });
+      document.getElementById('confirmPriceModal').classList.add('show');
+    }
+
+    function confirmPriceChoice() {
+      const item = unresolvedQueue[0];
+      const customName = document.getElementById('confirmPriceCustomName').value.trim();
+      const customAmount = document.getElementById('confirmPriceCustomAmount').value.trim();
+      let name, price;
+
+      if (customName && customAmount) {
+        name = customName;
+        price = parseFloat(customAmount);
+      } else {
+        const chosen = document.querySelector('#confirmPriceSuggestions input[name="priceSuggestion"]:checked');
+        if (!chosen) { alert('Pick a suggestion or type a name and price.'); return; }
+        const s = item.suggestions[parseInt(chosen.value, 10)];
+        name = s.name;
+        price = s.price;
+      }
+      if (isNaN(price)) { alert('Enter a valid price.'); return; }
+
+      fetch('/order/learn-price', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text: item.text, name, price })
+      }).then(() => {
+        document.getElementById('confirmPriceModal').classList.remove('show');
+        unresolvedQueue.shift();
+        showNextUnresolved();
+      });
+    }
+
+    function showPricedReceipt(result) {
+      const lines = [];
+      result.priced_lines.forEach(l => {
+        lines.push(`${l.text} — £${l.price.toFixed(2)}${l.note === 'free with breakfast' ? ' (free with breakfast)' : ''}`);
+      });
+      lines.push('');
+      lines.push(`TOTAL: £${result.total.toFixed(2)}`);
+      document.getElementById('receiptText').textContent = lines.join('\n');
       document.getElementById('receiptModal').classList.add('show');
     }
 
