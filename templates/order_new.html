@@ -171,6 +171,17 @@
     </div>
   </div>
 
+  <div class="comp-modal" id="aiModal">
+    <div class="comp-box">
+      <h3>🤖 AI Suggestion</h3>
+      <div id="aiResultBox" style="font-size: 14px; line-height: 1.5;"></div>
+      <div class="actions">
+        <button class="confirm-btn" onclick="confirmAiSuggestion()">Add to Order</button>
+        <button class="cancel-btn" onclick="closeAiModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div class="comp-modal" id="comboFormModal">
     <div class="comp-box">
       <h3 id="comboFormText"></h3>
@@ -405,6 +416,12 @@
           <div style="margin-top: 6px;">
             <a href="#" style="font-size: 13px; color: #2d6a4f;" onclick="openCustomSandwich(${cust.id}); return false;">+ Custom Sandwich (not on menu)</a>
           </div>
+          <div style="margin-top: 8px; display:flex; gap:6px;">
+            <input type="text" id="ai-input-${cust.id}" placeholder="🤖 Not sure? e.g. Ex2.HBx2.Chips.Bx2"
+              style="flex:1; padding:8px 10px; border:1px solid #ccc; border-radius:8px; font-size:13px;"
+              onkeydown="if(event.key==='Enter'){event.preventDefault(); askAI(${cust.id});}">
+            <button onclick="askAI(${cust.id})" style="padding:8px 12px; background:#555; color:white; border:none; border-radius:8px; font-size:13px;">Ask AI</button>
+          </div>
           <div class="lines" id="lines-${cust.id}"></div>
         `;
         el.appendChild(div);
@@ -491,6 +508,65 @@
         d.onclick = () => selectMenuItem(custId, input, entry.name, entry.category);
         suggEl.appendChild(d);
       });
+    }
+
+    let pendingAiResult = null; // { custId, breakdown, estimated_price, unrecognised, note }
+
+    function askAI(custId) {
+      const box = document.getElementById('ai-input-' + custId);
+      const text = box.value.trim();
+      if (!text) return;
+      const originalPlaceholder = box.placeholder;
+      box.disabled = true;
+      box.placeholder = 'Asking AI...';
+      fetch('/order/ai-assist', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text })
+      }).then(r => r.json()).then(result => {
+        box.disabled = false;
+        box.placeholder = originalPlaceholder;
+        if (result.error) {
+          alert(result.error);
+          return;
+        }
+        pendingAiResult = { custId, ...result };
+        const resultBox = document.getElementById('aiResultBox');
+        let html = `<p><strong>${result.breakdown || text}</strong></p>`;
+        html += `<p>Estimated price: £${(result.estimated_price || 0).toFixed(2)}</p>`;
+        if (result.unrecognised && result.unrecognised.length > 0) {
+          html += `<p style="color:#c0392b;">Not recognised: ${result.unrecognised.join(', ')}</p>`;
+        }
+        if (result.note) {
+          html += `<p style="color:#888; font-size:13px;">${result.note}</p>`;
+        }
+        resultBox.innerHTML = html;
+        document.getElementById('aiModal').classList.add('show');
+      }).catch(() => {
+        box.disabled = false;
+        box.placeholder = originalPlaceholder;
+        alert('AI request failed — check your connection and try again.');
+      });
+    }
+
+    function closeAiModal() {
+      document.getElementById('aiModal').classList.remove('show');
+      pendingAiResult = null;
+    }
+
+    function confirmAiSuggestion() {
+      if (!pendingAiResult) return;
+      const { custId, breakdown, estimated_price, note } = pendingAiResult;
+      const notes = [`Estimated price: £${(estimated_price || 0).toFixed(2)}`];
+      if (note) notes.push(note);
+      const cust = customers.find(c => c.id === custId);
+      cust.lines.push({ text: breakdown, notes, type: 'combo', category: null });
+      renderLines(cust);
+      document.getElementById('aiModal').classList.remove('show');
+      const box = document.getElementById('ai-input-' + custId);
+      if (box) box.value = '';
+      pendingAiResult = null;
+      saveState();
     }
 
     let pendingComboText = null; // { custId, text } while comboFormModal is open
