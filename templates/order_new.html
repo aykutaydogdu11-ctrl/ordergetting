@@ -171,6 +171,22 @@
     </div>
   </div>
 
+  <div class="comp-modal" id="comboFormModal">
+    <div class="comp-box">
+      <h3 id="comboFormText"></h3>
+      <div class="comp-list">
+        <label><input type="radio" name="comboForm" value="sandwich"> Sandwich (choose bread)</label>
+        <label><input type="radio" name="comboForm" value="ontoast"> On Toast (choose how many)</label>
+        <label><input type="radio" name="comboForm" value="breakfast" checked> Breakfast plate</label>
+        <label><input type="radio" name="comboForm" value="plain"> Plain (as typed)</label>
+      </div>
+      <div class="actions">
+        <button class="confirm-btn" onclick="confirmComboForm()">Next</button>
+        <button class="cancel-btn" onclick="cancelComboForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div class="comp-modal" id="categoryPickerModal">
     <div class="comp-box">
       <h3 id="categoryPickerTitle"></h3>
@@ -296,10 +312,10 @@
     function resolveLine(buffer) {
       const tokens = buffer.split('.').map(t => t.trim()).filter(Boolean);
       if (tokens.length > 1) {
-        // Multiple ingredients typed together (e.g. "E.B.Ch") — this is a
-        // hand-built combo plate, always sent to the kitchen as one line.
+        // Multiple ingredients typed together (e.g. "E.B.Ch") — ask how this
+        // should be served before committing it.
         const text = tokens.map(resolveToken).join(', ');
-        return { text, type: 'combo', category: null };
+        return { text, type: 'combo', category: null, isIngredientCombo: true };
       }
       const rawSingle = tokens[0] || '';
       // First, does the whole thing (or its abbreviation) match a real menu item?
@@ -307,16 +323,16 @@
       const category = ITEM_CATEGORY[resolvedWhole] || DISAMBIGUATED_CATEGORY[resolvedWhole] || null;
       if (category) {
         const text = disambiguate(resolvedWhole, category);
-        return { text, type: 'item', category };
+        return { text, type: 'item', category, isIngredientCombo: false };
       }
       // Not a recognised menu item as a whole. If it's a free-typed phrase
       // with several words (numbers, "on", etc. — e.g. "2 pe on 1 tst"),
       // expand any abbreviation codes word-by-word and send it to the
       // kitchen as a custom combo line.
       if (rawSingle.includes(' ')) {
-        return { text: expandWordsInPhrase(rawSingle), type: 'combo', category: null };
+        return { text: expandWordsInPhrase(rawSingle), type: 'combo', category: null, isIngredientCombo: false };
       }
-      return { text: resolvedWhole, type: 'item', category: null };
+      return { text: resolvedWhole, type: 'item', category: null, isIngredientCombo: false };
     }
 
     function buildReceiptText() {
@@ -449,7 +465,42 @@
       });
     }
 
-    function openCustomSandwich(custId) {
+    let pendingComboText = null; // { custId, text } while comboFormModal is open
+
+    function openComboFormModal(custId, comboText) {
+      pendingComboText = { custId, text: comboText };
+      document.getElementById('comboFormText').textContent = comboText;
+      document.querySelector('#comboFormModal input[value="breakfast"]').checked = true;
+      document.getElementById('comboFormModal').classList.add('show');
+    }
+
+    function cancelComboForm() {
+      document.getElementById('comboFormModal').classList.remove('show');
+      pendingComboText = null;
+    }
+
+    function confirmComboForm() {
+      if (!pendingComboText) return;
+      const { custId, text } = pendingComboText;
+      const choice = document.querySelector('#comboFormModal input[name="comboForm"]:checked').value;
+      document.getElementById('comboFormModal').classList.remove('show');
+      pendingComboText = null;
+      const input = document.getElementById('input-' + custId);
+
+      if (choice === 'sandwich') {
+        openCustomSandwich(custId, text);
+      } else if (choice === 'ontoast') {
+        const n = prompt('How many slices of toast?', '2');
+        if (n === null) return; // cancelled
+        const count = parseInt(n, 10) || 1;
+        commitResolvedLine(custId, `${text} on ${count} Toast`, 'combo', null);
+      } else {
+        // breakfast or plain — commit as typed, straight to the kitchen
+        commitResolvedLine(custId, text, 'combo', null);
+      }
+    }
+
+    function openCustomSandwich(custId, prefillFilling) {
       document.getElementById('sugg-' + custId).innerHTML = '';
       pendingComponentTarget = {
         custId, itemName: null, category: 'Sandwiches to Breakfasts',
@@ -457,7 +508,7 @@
       };
       document.getElementById('compItemName').textContent = 'Custom Sandwich';
       document.getElementById('customFillingRow').style.display = '';
-      document.getElementById('compFillingName').value = '';
+      document.getElementById('compFillingName').value = prefillFilling || '';
       document.getElementById('breadNoteRow').style.display = '';
       document.getElementById('compBreadNote').value = '';
       document.getElementById('compExtras').value = '';
@@ -700,14 +751,37 @@
 
       if (isNoteText(buffer) && cust.lines.length > 0) {
         cust.lines[cust.lines.length - 1].notes.push(buffer);
-      } else {
-        const resolved = resolveLine(buffer);
-        const carriedNotes = pendingEditNotes[custId] || [];
-        delete pendingEditNotes[custId];
-        cust.lines.push({ text: resolved.text, notes: carriedNotes, type: resolved.type, category: resolved.category });
+        input.value = '';
+        document.getElementById('sugg-' + custId).innerHTML = '';
+        renderLines(cust);
+        saveState();
+        return;
       }
+
+      const resolved = resolveLine(buffer);
+      if (resolved.isIngredientCombo) {
+        // A hand-built combo (e.g. "E.HB.Ham") could become a sandwich, a
+        // breakfast plate, or an on-toast order — ask before committing it.
+        input.value = '';
+        document.getElementById('sugg-' + custId).innerHTML = '';
+        openComboFormModal(custId, resolved.text);
+        return;
+      }
+
+      const carriedNotes = pendingEditNotes[custId] || [];
+      delete pendingEditNotes[custId];
+      cust.lines.push({ text: resolved.text, notes: carriedNotes, type: resolved.type, category: resolved.category });
       input.value = '';
       document.getElementById('sugg-' + custId).innerHTML = '';
+      renderLines(cust);
+      saveState();
+    }
+
+    function commitResolvedLine(custId, text, type, category) {
+      const cust = customers.find(c => c.id === custId);
+      const carriedNotes = pendingEditNotes[custId] || [];
+      delete pendingEditNotes[custId];
+      cust.lines.push({ text, notes: carriedNotes, type, category });
       renderLines(cust);
       saveState();
     }
