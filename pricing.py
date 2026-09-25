@@ -275,7 +275,12 @@ def price_sandwich(raw_text):
 # PRICE A HAND-BUILT COMBO (comma-joined Extra Topping ingredients)
 # ============================================================
 
-def price_extra_topping_combo(raw_text):
+def price_extra_topping_combo(raw_text, discount_eligible=True):
+    # Extra Topping prices are a discounted "add-on to a breakfast" rate, not
+    # a standalone sale price — never auto-price them unless the order also
+    # has a Breakfast item in it. Without that, this goes to Confirm Price.
+    if not discount_eligible:
+        return None
     parts = [p.strip() for p in raw_text.split(",") if p.strip()]
     if len(parts) < 2:
         return None
@@ -297,6 +302,12 @@ def price_extra_topping_combo(raw_text):
         labels.append(f"{name} x{qty}" if qty > 1 else name)
         ing_key = _normalize_ingredient(name)
         ordered_ingredients[ing_key] = ordered_ingredients.get(ing_key, 0) + qty
+
+    total_qty = sum(ordered_ingredients.values())
+    # More than 4 items: don't guess how to split combo-vs-extra — a human
+    # picks from Confirm Price instead (see get_suggestions).
+    if total_qty > 4:
+        return None
 
     best_combo = None
     for combo_name, combo_price, combo_ingredients in SMALL_BREAKFAST_COMBOS:
@@ -329,7 +340,9 @@ _TOPPING_ON_BREAD = re.compile(
 )
 
 
-def price_topping_on_bread(text):
+def price_topping_on_bread(text, discount_eligible=True):
+    if not discount_eligible:
+        return None
     m = _TOPPING_ON_BREAD.match(text.strip())
     if not m:
         return None
@@ -361,7 +374,7 @@ def price_topping_on_bread(text):
 # MAIN ENTRY POINTS
 # ============================================================
 
-def price_line(raw_text, category=None):
+def price_line(raw_text, category=None, discount_eligible=True):
     """Returns (matched_name, price, note) or None."""
     text = raw_text.strip()
     if not text:
@@ -376,13 +389,22 @@ def price_line(raw_text, category=None):
         if result:
             return result
 
-    topping_bread_result = price_topping_on_bread(text)
+    topping_bread_result = price_topping_on_bread(text, discount_eligible)
     if topping_bread_result:
         return topping_bread_result
 
-    combo_result = price_extra_topping_combo(text)
+    is_combo_shaped = bool(re.search(r",|x\d+", text, re.IGNORECASE))
+
+    combo_result = price_extra_topping_combo(text, discount_eligible)
     if combo_result:
         return combo_result
+    if is_combo_shaped:
+        # A hand-built list/quantity combo that price_extra_topping_combo
+        # declined (not eligible, more than 4 items, or an unrecognised
+        # ingredient) — never let this fall through to a coincidental
+        # text-similarity match against some unrelated named dish; it
+        # needs a human, via Confirm Price.
+        return None
 
     sandwich_result = price_sandwich(text)
     if sandwich_result:
@@ -393,8 +415,13 @@ def price_line(raw_text, category=None):
     if not match:
         return None
     key, name, _ = match
-    price = next(i["price"] for i in FLAT_ITEMS if i["name"] == key)
-    return name, price, f"matched '{name}'"
+    matched_item = next(i for i in FLAT_ITEMS if i["name"] == key)
+    if matched_item["category"] == "Extra Topping" and not discount_eligible:
+        # A standalone Extra Topping item (e.g. a takeaway "Hash Brown" on
+        # its own) — its listed price is a with-breakfast discount, not a
+        # real standalone price, so this needs a human, not a guess.
+        return None
+    return name, matched_item["price"], f"matched '{name}'"
 
 
 def get_suggestions(raw_text, n=3):
@@ -438,16 +465,23 @@ def price_order_lines(all_lines):
       unresolved:   [{"text", "suggestions": [...]}]  (needs Confirm Price)
     Every Breakfast-category line ordered grants one free basic hot drink
     (Tea/Black Coffee/Flat White/Cappuccino/Latte), applied in line order.
+    Extra Topping prices are a with-breakfast discount, not a standalone
+    price, so anything relying on them (a lone topping, a hand-built combo,
+    a "topping on bread" line) is only auto-priced when the same order also
+    has a Breakfast item — otherwise it goes to Confirm Price. A combo of
+    more than 4 Extra Topping items always goes to Confirm Price too,
+    rather than guessing which 4 to charge at the Small Breakfast rate.
     """
     priced_lines = []
     unresolved = []
     total = 0.0
+    has_breakfast = any(l.get("category") == "Breakfast" for l in all_lines)
     credits_remaining = sum(1 for l in all_lines if l.get("category") == "Breakfast")
 
     for line in all_lines:
         text = line["text"]
         category = line.get("category")
-        result = price_line(text, category)
+        result = price_line(text, category, discount_eligible=has_breakfast)
         if not result:
             unresolved.append({"text": text, "suggestions": get_suggestions(text)})
             continue
