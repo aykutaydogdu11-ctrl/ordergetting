@@ -183,6 +183,7 @@
           style="width:100%; padding:8px; border:1px solid #ccc; border-radius:8px; font-size:14px;">
       </div>
       <div class="actions">
+        <button class="cancel-btn" onclick="cancelConfirmPrice()">Back to Editing</button>
         <button class="confirm-btn" onclick="confirmPriceChoice()">Confirm</button>
       </div>
     </div>
@@ -1040,6 +1041,11 @@
         listEl.appendChild(label);
       });
       document.getElementById('confirmPriceModal').classList.add('show');
+    }
+
+    function cancelConfirmPrice() {
+      document.getElementById('confirmPriceModal').classList.remove('show');
+      unresolvedQueue = [];
     }
 
     function confirmPriceChoice() {
