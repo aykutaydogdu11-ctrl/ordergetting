@@ -337,6 +337,36 @@
       }).join(' ');
     }
 
+    // "Topping on Bread" (e.g. "3 pe on 2 crb", "se on 1 tst brown") — an
+    // Extra Topping ingredient served on a bread base, any quantity. This
+    // formats it properly for the ticket AND lets pricing.py price any
+    // quantity automatically, without teaching each combination separately.
+    const BREAD_WORD_LABELS = {
+      'tst': 'Toast', 'toast': 'Toast',
+      'crb': 'Crusty Bread', 'crusty': 'Crusty Bread',
+      'bag': 'Bag', 'roll': 'Roll', 'bgt': 'Baguette', 'baguette': 'Baguette'
+    };
+    const BREAD_COLOUR_WORDS = ['brown', 'white', 'seeded', 'granary', 'wholemeal'];
+
+    function parseToppingOnBread(phrase) {
+      const re = /^(?:(\d+)\s+)?(.+?)\s+on\s+(?:(\d+)\s+)?(\S+)(?:\s+(\S+))?$/i;
+      const m = phrase.match(re);
+      if (!m) return null;
+      const [, toppingQtyStr, toppingWordsRaw, breadQtyStr, breadWordRaw, extraWordRaw] = m;
+      const breadKey = breadWordRaw.toLowerCase();
+      const breadLabel = BREAD_WORD_LABELS[breadKey] || BREAD_WORD_LABELS[(ABBR[breadKey] || '').toLowerCase()];
+      if (!breadLabel) return null;
+      const toppingQty = toppingQtyStr ? parseInt(toppingQtyStr, 10) : 1;
+      const breadQty = breadQtyStr ? parseInt(breadQtyStr, 10) : 1;
+      const toppingName = toppingWordsRaw.split(/\s+/).map(w => ABBR[w.toLowerCase()] || w).join(' ');
+      let colour = '';
+      if (extraWordRaw && BREAD_COLOUR_WORDS.includes(extraWordRaw.toLowerCase())) {
+        colour = extraWordRaw.charAt(0).toUpperCase() + extraWordRaw.slice(1).toLowerCase() + ' ';
+      }
+      const toppingPart = toppingQty > 1 ? `${toppingQty} ${toppingName}` : toppingName;
+      return `${toppingPart} on ${breadQty} ${colour}${breadLabel}`;
+    }
+
     const BREAD_LABEL_TO_SIZE = {
       'roll': 'roll', 'sandwich': 'sand', 'sand': 'sand',
       'crusty': 'crusty', 'bag': 'bag', 'baguette': 'baguette'
@@ -381,12 +411,13 @@
         const text = disambiguate(resolvedWhole, category);
         return { text, type: 'item', category, isIngredientCombo: false };
       }
-      // Not a recognised menu item as a whole. If it's a free-typed phrase
-      // with several words (numbers, "on", etc. — e.g. "2 pe on 1 tst"),
-      // expand any abbreviation codes word-by-word and send it to the
-      // kitchen as a custom combo line.
+      // Not a recognised menu item as a whole. Try the "topping on bread"
+      // pattern first (e.g. "3 pe on 2 crb"), then fall back to generic
+      // word-by-word abbreviation expansion for anything else.
       if (rawSingle.includes(' ')) {
-        return { text: expandWordsInPhrase(rawSingle), type: 'combo', category: null, isIngredientCombo: false };
+        const toppingOnBread = parseToppingOnBread(rawSingle);
+        const text = toppingOnBread || expandWordsInPhrase(rawSingle);
+        return { text, type: 'combo', category: null, isIngredientCombo: false };
       }
       return { text: resolvedWhole, type: 'item', category: null, isIngredientCombo: false };
     }
