@@ -32,10 +32,26 @@ import os
 import re
 import difflib
 
-LEARNED_PRICES_FILE = os.environ.get("LEARNED_PRICES_FILE", "learned_prices.json")
+LEARNED_PRICES_FILE = os.environ.get(
+    "LEARNED_PRICES_FILE",
+    os.path.join(os.environ.get("DATA_DIR", "."), "learned_prices.json"),
+)
+
+# Set by app.py at startup if Firebase is configured. When present, learned
+# prices are stored in Firestore (survives Render redeploys/spin-downs);
+# otherwise they fall back to a local JSON file.
+_FIRESTORE_DB = None
+
+
+def set_firestore_client(db):
+    global _FIRESTORE_DB
+    _FIRESTORE_DB = db
 
 
 def load_learned_prices():
+    if _FIRESTORE_DB:
+        doc = _FIRESTORE_DB.collection("config").document("learned_prices").get()
+        return doc.to_dict().get("data", {}) if doc.exists else {}
     try:
         with open(LEARNED_PRICES_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -45,8 +61,18 @@ def load_learned_prices():
 
 
 def save_learned_price(raw_text, name, price):
+    key = _normalize(raw_text)
+    entry = {"name": name, "price": float(price)}
+    if _FIRESTORE_DB:
+        doc_ref = _FIRESTORE_DB.collection("config").document("learned_prices")
+        try:
+            doc_ref.update({f"data.{key}": entry})
+        except Exception:
+            # Document doesn't exist yet on first-ever learned price.
+            doc_ref.set({"data": {key: entry}})
+        return
     learned = load_learned_prices()
-    learned[_normalize(raw_text)] = {"name": name, "price": float(price)}
+    learned[key] = entry
     with open(LEARNED_PRICES_FILE, "w", encoding="utf-8") as f:
         json.dump(learned, f, indent=2, ensure_ascii=False)
 
