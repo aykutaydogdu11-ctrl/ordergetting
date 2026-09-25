@@ -3,21 +3,85 @@ import os
 import requests
 from flask import Flask, render_template, request, jsonify
 import pricing
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o-mini"
 
-# Load menu once at startup
+# Files the staff edit at runtime (abbreviations, category shortcuts, the AI
+# log) live on a persistent disk if one is mounted — set DATA_DIR to that
+# disk's mount path (e.g. "/data") as an environment variable in Render.
+# Without a persistent disk, DATA_DIR defaults to the app folder, which is
+# fine for local testing but gets wiped on every redeploy/spin-down on Render.
+DATA_DIR = os.environ.get("DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+ABBREVIATIONS_PATH = os.path.join(DATA_DIR, "abbreviations.json")
+CATEGORY_SHORTCUTS_PATH = os.path.join(DATA_DIR, "category_shortcuts.json")
+AI_LOG_PATH = os.path.join(DATA_DIR, "ai_interactions.log")
+
+# Ported from the original ticket-reading app's DEFAULT_CODES, so a fresh
+# store starts pre-loaded with these instead of empty.
+DEFAULT_ABBREVIATIONS = {
+    "c": "Flat White", "bc": "Black Coffee", "l": "Latte", "cap": "Cappuccino",
+    "t": "Tea", "can": "Can Drink", "bottle": "Bottle Drink",
+    "e": "Egg", "pe": "Poached Egg", "se": "Scrambled Egg", "b": "Bacon",
+    "s": "Sausage", "bb": "Baked Beans", "hb": "Hash Browns", "bubble": "Bubble",
+}
+DEFAULT_CATEGORY_SHORTCUTS = {"ms": "Fresh Milkshakes"}
+
+# ------------------------------------------------------------
+# PERSISTENT STORE: Firestore if configured, else local files.
+# On Render's free tier the local filesystem is wiped on every
+# redeploy AND on every spin-down (15 min idle) — Firestore lives
+# outside Render entirely, so it survives both.
+# ------------------------------------------------------------
+FIREBASE_CREDENTIALS_JSON = os.environ.get("FIREBASE_CREDENTIALS_JSON", "")
+
+db = None
+if FIREBASE_CREDENTIALS_JSON:
+    try:
+        cred_dict = json.loads(FIREBASE_CREDENTIALS_JSON)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        pricing.set_firestore_client(db)
+    except Exception as e:
+        print(f"Firebase init failed, falling back to local files: {e}")
+        db = None
+
+
+def _load_or_seed_local(path, key, defaults):
+    if not os.path.exists(path):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({key: defaults}, f, indent=2, ensure_ascii=False)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)[key]
+
+
+def _load_or_seed_firestore(doc_name, defaults):
+    doc_ref = db.collection("config").document(doc_name)
+    doc = doc_ref.get()
+    if doc.exists and "data" in doc.to_dict():
+        return doc.to_dict()["data"]
+    doc_ref.set({"data": defaults})
+    return defaults.copy()
+
+
+# Load menu once at startup — this is static config, edited via GitHub, so
+# it always ships with the repo rather than living in persistent storage.
 with open("menu.json", "r", encoding="utf-8") as f:
     MENU = json.load(f)
 
-with open("abbreviations.json", "r", encoding="utf-8") as f:
-    ABBREVIATIONS = json.load(f)["abbreviations"]
-
-with open("category_shortcuts.json", "r", encoding="utf-8") as f:
-    CATEGORY_SHORTCUTS = json.load(f)["shortcuts"]
+if db:
+    ABBREVIATIONS = _load_or_seed_firestore("abbreviations", DEFAULT_ABBREVIATIONS)
+    CATEGORY_SHORTCUTS = _load_or_seed_firestore("category_shortcuts", DEFAULT_CATEGORY_SHORTCUTS)
+else:
+    ABBREVIATIONS = _load_or_seed_local(ABBREVIATIONS_PATH, "abbreviations", DEFAULT_ABBREVIATIONS)
+    CATEGORY_SHORTCUTS = _load_or_seed_local(CATEGORY_SHORTCUTS_PATH, "shortcuts", DEFAULT_CATEGORY_SHORTCUTS)
 
 with open("station_rules.json", "r", encoding="utf-8") as f:
     STATION_RULES = json.load(f)
@@ -33,13 +97,19 @@ ORDERS = {}
 
 
 def save_abbreviations():
-    with open("abbreviations.json", "w", encoding="utf-8") as f:
-        json.dump({"abbreviations": ABBREVIATIONS}, f, indent=2, ensure_ascii=False)
+    if db:
+        db.collection("config").document("abbreviations").set({"data": ABBREVIATIONS})
+    else:
+        with open(ABBREVIATIONS_PATH, "w", encoding="utf-8") as f:
+            json.dump({"abbreviations": ABBREVIATIONS}, f, indent=2, ensure_ascii=False)
 
 
 def save_category_shortcuts():
-    with open("category_shortcuts.json", "w", encoding="utf-8") as f:
-        json.dump({"shortcuts": CATEGORY_SHORTCUTS}, f, indent=2, ensure_ascii=False)
+    if db:
+        db.collection("config").document("category_shortcuts").set({"data": CATEGORY_SHORTCUTS})
+    else:
+        with open(CATEGORY_SHORTCUTS_PATH, "w", encoding="utf-8") as f:
+            json.dump({"shortcuts": CATEGORY_SHORTCUTS}, f, indent=2, ensure_ascii=False)
 
 
 def guess_category(text):
@@ -72,7 +142,7 @@ def log_ai_interaction(input_text, result):
     # Best-effort log so patterns can be reviewed later and turned into
     # proper rules/abbreviations — never let logging break the request.
     try:
-        with open("ai_interactions.log", "a", encoding="utf-8") as f:
+        with open(AI_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps({"input": input_text, "result": result}, ensure_ascii=False) + "\n")
     except Exception:
         pass
