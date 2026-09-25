@@ -328,6 +328,18 @@
       return ABBR[key] || t;
     }
 
+    function resolveComboToken(token) {
+      // "Bx2" or "B x2" -> resolve "B" then reattach as "Bacon x2", so
+      // pricing.py's ingredient-combo parser (which reads "Name xN") can
+      // price any quantity without being taught it separately.
+      const t = token.trim();
+      const m = t.match(/^(.+?)\s*[xX](\d+)$/);
+      if (m) {
+        return `${resolveToken(m[1])} x${m[2]}`;
+      }
+      return resolveToken(t);
+    }
+
     function expandWordsInPhrase(phrase) {
       // "2 pe on 1 tst" -> "2 Poached Eggs on 1 Toast" — expands only the
       // words that match a defined abbreviation code, leaving numbers,
@@ -401,7 +413,7 @@
       if (tokens.length > 1) {
         // Multiple ingredients typed together (e.g. "E.B.Ch") — ask how this
         // should be served before committing it.
-        const text = tokens.map(resolveToken).join(', ');
+        const text = tokens.map(resolveComboToken).join(', ');
         return { text, type: 'combo', category: null, isIngredientCombo: true };
       }
       const rawSingle = tokens[0] || '';
