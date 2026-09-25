@@ -2,6 +2,7 @@ import json
 import os
 import requests
 from flask import Flask, render_template, request, jsonify
+import pricing
 
 app = Flask(__name__)
 
@@ -265,6 +266,40 @@ def generate_tickets():
     kitchen_ticket = format_ticket("Kitchen", [("Food", kitchen_lines)], table_no)
 
     return jsonify({"bar_ticket": bar_ticket, "kitchen_ticket": kitchen_ticket})
+
+
+@app.route("/order/price", methods=["POST"])
+def price_order():
+    data = request.json
+    customers = data.get("customers", [])
+    all_lines = []
+    for cust in customers:
+        for line in cust.get("lines", []):
+            all_lines.append({
+                "text": line["text"],
+                "category": line.get("category"),
+            })
+    priced_lines, total, unresolved = pricing.price_order_lines(all_lines)
+    return jsonify({
+        "priced_lines": priced_lines,
+        "total": round(total, 2),
+        "unresolved": unresolved,
+    })
+
+
+@app.route("/order/learn-price", methods=["POST"])
+def learn_price():
+    data = request.json
+    raw_text = data.get("text", "").strip()
+    name = data.get("name", "").strip()
+    price = data.get("price")
+    if not raw_text or not name or price is None:
+        return jsonify({"error": "Missing text, name, or price."}), 400
+    try:
+        pricing.save_learned_price(raw_text, name, float(price))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Price must be a number."}), 400
+    return jsonify({"ok": True})
 
 
 @app.route("/table/<table_no>")
