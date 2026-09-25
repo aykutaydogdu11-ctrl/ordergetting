@@ -309,6 +309,55 @@ def price_extra_topping_combo(raw_text):
 
 
 # ============================================================
+# "TOPPING ON BREAD" (e.g. "3 Poached Egg on 2 Crusty Bread",
+# "Scrambled Egg on 1 Brown Toast") — a custom combo built from
+# an Extra Topping ingredient served on a bread base, in any
+# quantity. Priced as (topping qty x topping price) + (bread qty
+# x bread base price), so ANY quantity works without having to
+# be taught each combination separately.
+# ============================================================
+
+BREAD_UNIT_PRICE = {
+    "toast": 0.75, "crusty bread": 0.75, "bag": 0.75, "roll": 0.75, "baguette": 1.00,
+}
+
+_TOPPING_ON_BREAD = re.compile(
+    r"^(?:(\d+)\s+)?(.+?)\s+on\s+(\d+)\s+"
+    r"(?:(brown|white|seeded|granary|wholemeal)\s+)?"
+    r"(toast|crusty bread|bag|roll|baguette)$",
+    re.IGNORECASE,
+)
+
+
+def price_topping_on_bread(text):
+    m = _TOPPING_ON_BREAD.match(text.strip())
+    if not m:
+        return None
+    topping_qty = int(m.group(1)) if m.group(1) else 1
+    topping_name = m.group(2).strip()
+    bread_qty = int(m.group(3))
+    bread_type = m.group(5).lower()
+
+    topping_candidates = [
+        (i["name"], i["name"]) for i in FLAT_ITEMS if i["category"] == "Extra Topping"
+    ]
+    match = best_fuzzy_match(topping_name, topping_candidates, cutoff=0.5)
+    if not match:
+        return None
+    key, matched_topping, _ = match
+    topping_unit_price = next(
+        i["price"] for i in FLAT_ITEMS if i["name"] == key and i["category"] == "Extra Topping"
+    )
+    bread_unit_price = BREAD_UNIT_PRICE.get(bread_type, 0.75)
+    total = topping_qty * topping_unit_price + bread_qty * bread_unit_price
+    note = (
+        f"{topping_qty}x {matched_topping} (£{topping_unit_price:.2f}) + "
+        f"{bread_qty}x {bread_type.title()} (£{bread_unit_price:.2f})"
+    )
+    return text, round(total, 2), note
+
+
+# ============================================================
 # MAIN ENTRY POINTS
 # ============================================================
 
@@ -326,6 +375,10 @@ def price_line(raw_text, category=None):
         result = price_jacket_potato(text)
         if result:
             return result
+
+    topping_bread_result = price_topping_on_bread(text)
+    if topping_bread_result:
+        return topping_bread_result
 
     combo_result = price_extra_topping_combo(text)
     if combo_result:
