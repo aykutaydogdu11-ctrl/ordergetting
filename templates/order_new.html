@@ -283,6 +283,16 @@
       return ABBR[key] || t;
     }
 
+    function expandWordsInPhrase(phrase) {
+      // "2 pe on 1 tst" -> "2 Poached Eggs on 1 Toast" — expands only the
+      // words that match a defined abbreviation code, leaving numbers,
+      // "on", and anything else exactly as typed.
+      return phrase.split(/\s+/).map(word => {
+        const key = word.toLowerCase();
+        return ABBR[key] || word;
+      }).join(' ');
+    }
+
     function resolveLine(buffer) {
       const tokens = buffer.split('.').map(t => t.trim()).filter(Boolean);
       if (tokens.length > 1) {
@@ -291,12 +301,22 @@
         const text = tokens.map(resolveToken).join(', ');
         return { text, type: 'combo', category: null };
       }
-      // Single token — resolve it and look up its exact category if we
-      // recognise it as a real menu item name, so we don't have to guess later.
-      const resolved = resolveToken(tokens[0] || '');
-      const category = ITEM_CATEGORY[resolved] || DISAMBIGUATED_CATEGORY[resolved] || null;
-      const text = category ? disambiguate(resolved, category) : resolved;
-      return { text, type: 'item', category };
+      const rawSingle = tokens[0] || '';
+      // First, does the whole thing (or its abbreviation) match a real menu item?
+      const resolvedWhole = resolveToken(rawSingle);
+      const category = ITEM_CATEGORY[resolvedWhole] || DISAMBIGUATED_CATEGORY[resolvedWhole] || null;
+      if (category) {
+        const text = disambiguate(resolvedWhole, category);
+        return { text, type: 'item', category };
+      }
+      // Not a recognised menu item as a whole. If it's a free-typed phrase
+      // with several words (numbers, "on", etc. — e.g. "2 pe on 1 tst"),
+      // expand any abbreviation codes word-by-word and send it to the
+      // kitchen as a custom combo line.
+      if (rawSingle.includes(' ')) {
+        return { text: expandWordsInPhrase(rawSingle), type: 'combo', category: null };
+      }
+      return { text: resolvedWhole, type: 'item', category: null };
     }
 
     function buildReceiptText() {
