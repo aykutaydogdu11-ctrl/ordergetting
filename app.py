@@ -1,7 +1,12 @@
 import json
+import os
+import requests
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL = "gpt-4o-mini"
 
 # Load menu once at startup
 with open("menu.json", "r", encoding="utf-8") as f:
@@ -60,6 +65,74 @@ def format_ticket(title, sections, table_no):
             out.append("")  # blank line between items for easier reading
     out.append("Take Away" if table_no == "0" else f"Table {table_no}")
     return "\n".join(out)
+
+
+def log_ai_interaction(input_text, result):
+    # Best-effort log so patterns can be reviewed later and turned into
+    # proper rules/abbreviations — never let logging break the request.
+    try:
+        with open("ai_interactions.log", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"input": input_text, "result": result}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+@app.route("/order/ai-assist", methods=["POST"])
+def ai_assist():
+    if not OPENAI_API_KEY:
+        return jsonify({"error": "AI is not set up yet — ask your developer to add the OPENAI_API_KEY."}), 400
+
+    data = request.json or {}
+    text = data.get("text", "").strip()
+    if not text:
+        return jsonify({"error": "Nothing typed."}), 400
+
+    extra_topping = next(
+        (c for c in MENU["categories"] if c["name"] == "Extra Topping"), {"items": []}
+    )
+    price_list = {item["name"]: item.get("price") for item in extra_topping["items"]}
+
+    system_prompt = (
+        "You are a POS assistant for a UK café. Staff type shorthand order codes, "
+        "dot-separated (e.g. 'E.B.Chips'), where 'x2' after a code means quantity 2 "
+        "(e.g. 'Ex2' means 2 Eggs). Here are the café's own abbreviation codes:\n"
+        f"{json.dumps(ABBREVIATIONS)}\n\n"
+        "Here is the Extra Topping price list in GBP, used to price custom combos:\n"
+        f"{json.dumps(price_list)}\n\n"
+        "Given the staff member's shorthand input, respond with ONLY a JSON object "
+        "with these keys:\n"
+        '- "breakdown": a short, clear description, e.g. "2x Egg, 2x Hash Brown, Chips, 2x Bacon"\n'
+        '- "estimated_price": a number — the sum of the known Extra Topping prices '
+        "(respecting quantities) for every ingredient you recognise\n"
+        '- "unrecognised": an array of any words you could not match to a known item or code\n'
+        '- "note": a short note for the waiter, or an empty string if nothing to flag'
+    )
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENAI_MODEL,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text},
+                ],
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        result = json.loads(content)
+    except Exception as e:
+        result = {"error": f"AI request failed: {e}"}
+
+    log_ai_interaction(text, result)
+    return jsonify(result)
 
 
 @app.route("/")
