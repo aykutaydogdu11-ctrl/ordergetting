@@ -208,7 +208,11 @@ def ai_assist():
 
 @app.route("/")
 def home():
-    return render_template("tables.html", tables=ORDERS)
+    def sort_key(table_no):
+        return (0, int(table_no)) if table_no.isdigit() else (1, table_no)
+
+    sorted_tables = {k: ORDERS[k] for k in sorted(ORDERS.keys(), key=sort_key)}
+    return render_template("tables.html", tables=sorted_tables)
 
 
 @app.route("/abbreviations", methods=["GET", "POST"])
