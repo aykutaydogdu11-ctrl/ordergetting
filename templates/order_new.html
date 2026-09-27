@@ -423,9 +423,9 @@
           return { text: filling, type: 'sandwich_direct', breadSize, category: null, isIngredientCombo: false };
         }
         // Otherwise: multiple ingredients typed together (e.g. "E.B.Ch") —
-        // ask how this should be served before committing it.
+        // this is a plate, no need to ask; commit it straight away.
         const text = tokens.map(resolveComboToken).join(', ');
-        return { text, type: 'combo', category: null, isIngredientCombo: true };
+        return { text, type: 'combo', category: null, isIngredientCombo: false };
       }
       const rawSingle = tokens[0] || '';
       // First, does the whole thing (or its abbreviation) match a real menu item?
