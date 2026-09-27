@@ -226,7 +226,7 @@ def reload_menu():
 # ============================================================
 
 SIZE_TOKEN_TO_COLUMN = {
-    "bgt": "baguette", "baguette": "baguette",
+    "bgt": "bag", "baguette": "bag",  # the menu prices "Baguette" and "Bag" the same
     "crb": "crusty", "crusty": "crusty",
     "sand": "sand", "sandwich": "sand", "sdvc": "sand",
     "roll": "roll", "soft": "roll", "seedy": "roll",
