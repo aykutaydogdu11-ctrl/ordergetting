@@ -411,8 +411,19 @@
     function resolveLine(buffer) {
       const tokens = buffer.split('.').map(t => t.trim()).filter(Boolean);
       if (tokens.length > 1) {
-        // Multiple ingredients typed together (e.g. "E.B.Ch") — ask how this
-        // should be served before committing it.
+        // If the LAST code is a bread type (e.g. "S.E.HB.PE.bgt"), this is a
+        // sandwich, not a plate — skip the "how served?" question and go
+        // straight to the sandwich modal with the bread already chosen.
+        const lastRaw = tokens[tokens.length - 1];
+        const lastResolved = (ABBR[lastRaw.toLowerCase()] || lastRaw).toLowerCase();
+        const breadSize = BREAD_LABEL_TO_SIZE[lastRaw.toLowerCase()] || BREAD_LABEL_TO_SIZE[lastResolved];
+        if (breadSize) {
+          const fillingTokens = tokens.slice(0, -1);
+          const filling = fillingTokens.map(resolveComboToken).join(', ');
+          return { text: filling, type: 'sandwich_direct', breadSize, category: null, isIngredientCombo: false };
+        }
+        // Otherwise: multiple ingredients typed together (e.g. "E.B.Ch") —
+        // ask how this should be served before committing it.
         const text = tokens.map(resolveComboToken).join(', ');
         return { text, type: 'combo', category: null, isIngredientCombo: true };
       }
@@ -952,6 +963,12 @@
       }
 
       const resolved = resolveLine(buffer);
+      if (resolved.type === 'sandwich_direct') {
+        input.value = '';
+        document.getElementById('sugg-' + custId).innerHTML = '';
+        openCustomSandwich(custId, resolved.text, resolved.breadSize);
+        return;
+      }
       if (resolved.isIngredientCombo) {
         // A hand-built combo (e.g. "E.HB.Ham") could become a sandwich, a
         // breakfast plate, or an on-toast order — ask before committing it.
