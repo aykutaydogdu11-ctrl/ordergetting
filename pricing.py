@@ -410,6 +410,13 @@ def price_line(raw_text, category=None, discount_eligible=True):
     if learned:
         return learned["name"], learned["price"], "learned"
 
+    # "Make your own ..." (custom omelette / jacket potato) is not on the
+    # menu, so it must never be priced by similarity to a menu item — an
+    # extra filling would silently get the price of a similar-looking dish.
+    # Only an exact price a human already confirmed (above) may apply.
+    if re.match(r"(?i)^\s*make your own\b", text):
+        return None
+
     if category in DRINK_CATEGORIES or re.match(r"(?i)^\s*jp\b", text) or "jacket potato" in text.lower():
         result = price_jacket_potato(text)
         if result:
@@ -453,6 +460,29 @@ def price_line(raw_text, category=None, discount_eligible=True):
 def get_suggestions(raw_text, n=3):
     """Top candidates (regardless of confidence) for a Confirm Price screen."""
     text = raw_text.strip()
+
+    # A custom omelette: only real omelettes make sensible reference prices
+    # (never a sandwich that merely shares a filling word), matched on the
+    # fillings the customer chose.
+    if re.match(r"(?i)^\s*make your own omelette\b", text):
+        fillings = text.split(":", 1)[1] if ":" in text else text
+        omelettes = [(i["name"], i["name"]) for i in FLAT_ITEMS if i["category"] == "Omelettes"]
+        top = top_candidates(fillings, omelettes, n)
+        return [{"name": f"{name} omelette",
+                 "price": next(i["price"] for i in FLAT_ITEMS
+                               if i["name"] == key and i["category"] == "Omelettes")}
+                for score, key, name in top]
+
+    # A custom jacket potato: compare the chosen fillings with what each real
+    # jacket potato contains (e.g. "Melted cheese, Beans" -> Magic).
+    if re.match(r"(?i)^\s*make your own jacket potato\b", text):
+        fillings = text.split(":", 1)[1] if ":" in text else text
+        with_desc = [(p["name"], p["desc"]) for p in JP_PRESETS if p["desc"]]
+        top = top_candidates(fillings, with_desc, n)
+        return [{"name": f"{key} (jacket potato)",
+                 "price": next(p["price"] for p in JP_PRESETS if p["name"] == key)}
+                for score, key, desc in top]
+
     if re.match(r"(?i)^\s*jp\b", text) or "jacket potato" in text.lower():
         text_after_jp = re.sub(r"(?i)^\s*jp\b", "", text).strip()
         name_candidates = [(p["name"], p["name"]) for p in JP_PRESETS]
