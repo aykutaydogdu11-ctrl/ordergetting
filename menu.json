@@ -2,7 +2,7 @@
   "categories": [
     {
       "name": "Sandwiches to Breakfasts",
-      "note": "Toasted +\u00a30.30 extra. Prices are per size: roll, sand (sandwich), crusty, bag.",
+      "note": "Toasted +£0.30 extra. Prices are per size: roll, sand (sandwich), crusty, bag.",
       "items": [
         {
           "name": "Bacon",
@@ -369,7 +369,7 @@
         },
         {
           "name": "Latte",
-          "note": "Add vanilla, caramel & hazelnut extra +\u00a30.50",
+          "note": "Add vanilla, caramel & hazelnut extra +£0.50",
           "price": 2.8
         },
         {
@@ -420,12 +420,24 @@
         {
           "name": "Bottle Soft Drinks",
           "note": "Coke, Pepsi, Sprite, Fanta etc",
-          "price": 2.2
+          "price": 2.2,
+          "choices": [
+            "Coke",
+            "Zero Coke",
+            "Diet Coke",
+            "Dr Pepper"
+          ]
         },
         {
           "name": "Can Drinks",
           "note": "Coke, Pepsi, Sprite, Fanta etc",
-          "price": 1.7
+          "price": 1.7,
+          "choices": [
+            "Coke",
+            "Zero Coke",
+            "Diet Coke",
+            "Dr Pepper"
+          ]
         },
         {
           "name": "Orange Juice",
@@ -1105,7 +1117,7 @@
     },
     {
       "name": "Jumbo Jacket Potatoes",
-      "note": "Served with salad & coleslaw. Extra filling +\u00a31.50",
+      "note": "Served with salad & coleslaw. Extra filling +£1.50",
       "items": [
         {
           "name": "Magic",
