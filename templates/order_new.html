@@ -302,6 +302,13 @@
     function looseKey(text) {
       return text.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/s$/, '');
     }
+    function addLooseEntry(text, entry) {
+      const k = looseKey(text);
+      const list = (LOOSE_ITEMS[k] = LOOSE_ITEMS[k] || []);
+      // An item whose alias normalises to its own name must not count twice
+      // (that would look "ambiguous" and stop it matching at all).
+      if (!list.some(e => e.name === entry.name && e.category === entry.category)) list.push(entry);
+    }
     function findItemLoosely(text) {
       const matches = LOOSE_ITEMS[looseKey(text)] || [];
       return matches.length === 1 ? matches[0] : null;
@@ -313,8 +320,9 @@
         ALL_ITEM_ENTRIES.push({ name: item.name, category: cat.name });
         ITEM_CATEGORY[item.name] = cat.name;
         DISAMBIGUATED_CATEGORY[disambiguate(item.name, cat.name)] = cat.name;
-        const k = looseKey(item.name);
-        (LOOSE_ITEMS[k] = LOOSE_ITEMS[k] || []).push({ name: item.name, category: cat.name });
+        // The name people actually say can differ from the printed menu name
+        // (e.g. "Bottle Drink" for "Bottle Soft Drinks") — menu.json "aliases".
+        [item.name, ...(item.aliases || [])].forEach(n => addLooseEntry(n, { name: item.name, category: cat.name }));
       });
     });
 
