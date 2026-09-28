@@ -754,7 +754,29 @@
       "default_components": [
         "Chips",
         "Salad"
-      ]
+      ],
+      "make_your_own": {
+        "fillings": [
+          "Cheese",
+          "Ham",
+          "Mushroom",
+          "Onion",
+          "Tomato",
+          "Sweetcorn",
+          "Peas",
+          "Bacon",
+          "Sausage",
+          "Chicken",
+          "Spinach",
+          "Grilled peppers",
+          "Halloumi",
+          "Pastourma"
+        ],
+        "sides": [
+          "Chips",
+          "Salad"
+        ]
+      }
     },
     {
       "name": "On Toast",
@@ -1154,7 +1176,26 @@
           "note": "Farman farm, sausage, bacon, fried onion & melted cheese",
           "price": 8.5
         }
-      ]
+      ],
+      "make_your_own": {
+        "fillings": [
+          "Melted cheese",
+          "Beans",
+          "Chicken mayo",
+          "Bacon",
+          "Sausage",
+          "Fried onion",
+          "Bolognese sauce",
+          "Curry sauce",
+          "Chilli con carne",
+          "Tuna mayo",
+          "Prawn mayo"
+        ],
+        "sides": [
+          "Salad",
+          "Coleslaw"
+        ]
+      }
     },
     {
       "name": "Children's Meals",
