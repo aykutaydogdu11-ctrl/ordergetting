@@ -102,16 +102,25 @@
     <a href="/abbreviations">Codes</a>
   </header>
 
-  <div id="customers"></div>
-  <button class="add-customer-btn" onclick="addCustomer()">+ Add Customer</button>
+  <div id="editArea">
+    <div id="customers"></div>
+    <button class="add-customer-btn" onclick="addCustomer()">+ Add Customer</button>
+  </div>
 
   <div class="customer">
     <h3>Receipt</h3>
     <pre id="receiptPreview" style="white-space: pre-wrap; font-size: 15px; margin: 0;"></pre>
   </div>
 
-  <div class="bottom-bar">
+  <div class="bottom-bar" id="editBottomBar">
     <button onclick="generateTickets()">Generate Tickets</button>
+  </div>
+
+  <div class="bottom-bar" id="reviewBar" style="display:none;">
+    <div style="display:flex; gap:8px;">
+      <button onclick="enterEditMode()" style="flex:1; width:auto; background:#ddd; color:#333;">Edit</button>
+      <button onclick="finishTable()" style="flex:1; width:auto;">Finish</button>
+    </div>
   </div>
 
   <div class="ticket-modal" id="ticketModal">
@@ -183,7 +192,7 @@
           style="width:100%; padding:8px; border:1px solid #ccc; border-radius:8px; font-size:14px;">
       </div>
       <div class="actions">
-        <button class="cancel-btn" onclick="cancelConfirmPrice()">Back to Editing</button>
+        <button class="cancel-btn" onclick="cancelConfirmPrice()">Back</button>
         <button class="confirm-btn" onclick="confirmPriceChoice()">Confirm</button>
       </div>
     </div>
@@ -1123,12 +1132,28 @@
         .then(() => window.location.href = '/');
     }
 
+    // Two modes: "review" (table already has an order — just the receipt with
+    // Edit / Finish) and "edit" (the full order-taking screen).
+    function setMode(mode) {
+      const review = mode === 'review';
+      document.getElementById('editArea').style.display = review ? 'none' : '';
+      document.getElementById('editBottomBar').style.display = review ? 'none' : '';
+      document.getElementById('reviewBar').style.display = review ? '' : 'none';
+    }
+
+    function enterEditMode() {
+      setMode('edit');
+    }
+
+    const tableHasItems = customers.some(c => c.lines.length > 0);
+
     if (customers.length === 0) {
       addCustomer(); // start with one blank customer row
     } else {
       renderCustomers(); // restore this table's in-progress order
     }
     renderReceiptPreview();
+    setMode(tableHasItems ? 'review' : 'edit');
   </script>
 </body>
 </html>
