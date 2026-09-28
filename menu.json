@@ -426,6 +426,10 @@
             "Zero Coke",
             "Diet Coke",
             "Dr Pepper"
+          ],
+          "aliases": [
+            "Bottle Drink",
+            "Bottled Drink"
           ]
         },
         {
